@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-  name: "swift-composable-architecture",
+  name: "TCA",
   platforms: [
     .iOS(.v13),
     .macOS(.v10_15),
