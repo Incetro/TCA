@@ -168,6 +168,22 @@ public final class Store<State, Action> {
       )
     }
   }
+    
+  /// Initializes a store from an initial state and a reducer.
+  ///
+  /// - Parameters:
+  ///   - initialState: The state to start the application in.
+  ///   - reducer: The reducer that powers the business logic of the application.
+  public convenience init<R: Reducer>(
+    initialState: R.State,
+    reducer: R
+  ) where R.State == State, R.Action == Action {
+    self.init(
+        initialState: initialState,
+        reducer: reducer,
+        mainThreadChecksEnabled: true
+    )
+  }
 
   deinit {
     Logger.shared.log("\(typeName(of: self)).deinit")
