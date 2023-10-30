@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-  name: "TCA",
+  name: "swift-tca",
   platforms: [
     .iOS(.v13),
     .macOS(.v10_15),
