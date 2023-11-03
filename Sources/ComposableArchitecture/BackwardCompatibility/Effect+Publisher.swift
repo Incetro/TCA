@@ -54,6 +54,30 @@ extension Publisher {
             self
         }
     }
+    
+    /// Turns any publisher into an ``Effect`` for any output and failure type by ignoring
+    /// all output and any failure.
+    ///
+    /// This is useful for times you want to fire off an effect but don't want to feed any data back
+    /// into the system. It can automatically promote an effect to your reducer's domain.
+    ///
+    /// ```swift
+    /// case .buttonTapped:
+    ///   return analyticsClient.track("Button Tapped")
+    ///     .fireAndForget()
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - outputType: An output type.
+    /// - Returns: An effect that never produces output or errors.
+    public func fireAndForget<NewOutput>(
+        outputType: NewOutput.Type = NewOutput.self
+    ) -> Effect<NewOutput> {
+        self
+            .flatMap { _ in Empty<NewOutput, Failure>() }
+            .catch { _ in Empty<NewOutput, Never>() }
+            .eraseToEffect()
+    }
 }
 
 extension Effect {
@@ -183,8 +207,7 @@ extension Effect {
     ) -> Effect<NewOutput> {
         self
             .publisher
-            .flatMap { _ in Empty<NewOutput, Never>() }
-            .eraseToEffect()
+            .fireAndForget()
     }
 }
 
