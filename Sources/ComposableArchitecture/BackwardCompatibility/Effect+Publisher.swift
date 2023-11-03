@@ -172,7 +172,7 @@ extension Effect {
     ///
     /// - Parameter work: A closure encapsulating some work to execute in the real world.
     /// - Returns: An effect.
-    static func fireAndForget(_ work: @escaping () throws -> Void) -> Self {
+    public static func fireAndForget(_ work: @escaping () throws -> Void) -> Self {
         .run { _ in
             try work()
         }
