@@ -35,6 +35,25 @@ extension Publisher {
                 .map(transform)
         }
     }
+    
+    /// Turns any publisher into an ``EffectPublisher``.
+    ///
+    /// This can be useful for when you perform a chain of publisher transformations in a reducer, and
+    /// you need to convert that publisher to an effect so that you can return it from the reducer:
+    ///
+    /// ```swift
+    /// case .buttonTapped:
+    ///   return fetchUser(id: 1)
+    ///     .filter(\.isAdmin)
+    ///     .eraseToEffect()
+    /// ```
+    ///
+    /// - Returns: An effect that wraps `self`.
+    public func eraseToEffect() -> Effect<Output> where Failure == Never {
+        Effect.publisher {
+            self
+        }
+    }
 }
 
 extension Effect {
@@ -115,4 +134,51 @@ extension Effect {
             )
         }
     }
+    
+    /// Initializes an effect from a callback that can send as many values as it wants, and can send
+    /// a completion.
+    ///
+    /// This initializer is useful for bridging callback APIs, delegate APIs, and manager APIs to the
+    /// ``Effect`` type. One can wrap those APIs in an Effect so that its events are sent
+    /// through the effect, which allows the reducer to handle them.
+    ///
+    /// For example, one can create an effect to ask for access to `MPMediaLibrary`. It can start by
+    /// sending the current status immediately, and then if the current status is `notDetermined` it
+    /// can request authorization, and once a status is received it can send that back to the effect:
+    ///
+    /// ```swift
+    /// EffectPublisher.run { subscriber in
+    ///   subscriber.send(MPMediaLibrary.authorizationStatus())
+    ///
+    ///   guard MPMediaLibrary.authorizationStatus() == .notDetermined else {
+    ///     subscriber.send(completion: .finished)
+    ///     return AnyCancellable {}
+    ///   }
+    ///
+    ///   MPMediaLibrary.requestAuthorization { status in
+    ///     subscriber.send(status)
+    ///     subscriber.send(completion: .finished)
+    ///   }
+    ///   return AnyCancellable {
+    ///     // Typically clean up resources that were created here, but this effect doesn't
+    ///     // have any.
+    ///   }
+    /// }
+    /// ```
+    ///
+    /// - Parameter work: A closure that accepts a ``Subscriber`` value and returns a cancellable.
+    ///   When the ``Effect`` is completed, the cancellable will be used to clean up any
+    ///   resources created when the effect was started.
+    public static func run(
+        _ work: @escaping (Effect.Subscriber) -> Cancellable
+    ) -> Self {
+        let dependencies = DependencyValues._current
+        return AnyPublisher.create { subscriber in
+            DependencyValues.$_current.withValue(dependencies) {
+                work(subscriber)
+            }
+        }
+        .eraseToEffect()
+    }
 }
+
