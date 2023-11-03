@@ -177,5 +177,14 @@ extension Effect {
             try work()
         }
     }
+    
+    public func fireAndForget<NewOutput>(
+        outputType: NewOutput.Type = NewOutput.self
+    ) -> Effect<NewOutput> {
+        self
+            .publisher
+            .flatMap { _ in Empty<NewOutput, Never>() }
+            .eraseToEffect()
+    }
 }
 
