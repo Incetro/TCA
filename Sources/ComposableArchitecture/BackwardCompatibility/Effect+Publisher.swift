@@ -6,6 +6,7 @@
 //
 
 import Combine
+import CombineSchedulers
 
 // MARK: - Publisher+Effect
 
@@ -79,6 +80,8 @@ extension Publisher {
             .eraseToEffect()
     }
 }
+
+// MARK: - Effect
 
 extension Effect {
     
@@ -210,4 +213,3 @@ extension Effect {
             .fireAndForget()
     }
 }
-
