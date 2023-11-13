@@ -12,6 +12,10 @@ import CombineSchedulers
 
 extension Publisher {
     
+    public func catchToEffect() -> Effect<Result<Output, Failure>> {
+        self.catchToEffect { $0 }
+    }
+    
     public func catchToEffect<T>(
         _ transform: @escaping (Result<Output, Failure>) -> T
     ) -> Effect<T> {
