@@ -9,7 +9,6 @@
 
 extension Effect {
     
-    
     public static func async(
         priority: TaskPriority? = nil,
         action: @escaping @Sendable () async throws -> Action,
