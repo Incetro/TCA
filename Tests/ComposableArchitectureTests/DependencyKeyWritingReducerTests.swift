@@ -1,7 +1,6 @@
 import ComposableArchitecture
 import XCTest
 
-@MainActor
 final class DependencyKeyWritingReducerTests: BaseTCATestCase {
   func testWritingFusion() async {
     let reducer: _DependencyKeyWritingReducer<Feature> = Feature()
@@ -25,6 +24,7 @@ final class DependencyKeyWritingReducerTests: BaseTCATestCase {
     XCTAssertTrue((reducer as Any) is _DependencyKeyWritingReducer<Feature>)
   }
 
+  @MainActor
   func testWritingFusionOrder() async {
     let store = TestStore(initialState: Feature.State()) {
       Feature()
@@ -37,6 +37,7 @@ final class DependencyKeyWritingReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testTransformFusionOrder() async {
     let store = TestStore(initialState: Feature.State()) {
       Feature()
@@ -49,6 +50,7 @@ final class DependencyKeyWritingReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testWritingOrder() async {
     let store = TestStore(initialState: Feature.State()) {
       CombineReducers {
@@ -63,6 +65,7 @@ final class DependencyKeyWritingReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testTransformOrder() async {
     let store = TestStore(initialState: Feature.State()) {
       CombineReducers {
@@ -77,17 +80,18 @@ final class DependencyKeyWritingReducerTests: BaseTCATestCase {
     }
   }
 
-  func testDependency_EffectOfEffect() async {
-    struct Feature: Reducer {
-      struct State: Equatable { var count = 0 }
-      enum Action: Equatable {
-        case tap
-        case response(Int)
-        case otherResponse(Int)
-      }
-      @Dependency(\.myValue) var myValue
+  @Reducer
+  fileprivate struct Feature_testDependency_EffectOfEffect {
+    struct State: Equatable { var count = 0 }
+    enum Action: Equatable {
+      case tap
+      case response(Int)
+      case otherResponse(Int)
+    }
+    @Dependency(\.myValue) var myValue
 
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
+    var body: some Reducer<State, Action> {
+      Reduce { state, action in
         switch action {
         case .tap:
           state.count += 1
@@ -103,9 +107,11 @@ final class DependencyKeyWritingReducerTests: BaseTCATestCase {
         }
       }
     }
-
-    let store = TestStore(initialState: Feature.State()) {
-      Feature()
+  }
+  @MainActor
+  func testDependency_EffectOfEffect() async {
+    let store = TestStore(initialState: Feature_testDependency_EffectOfEffect.State()) {
+      Feature_testDependency_EffectOfEffect()
         .dependency(\.myValue, 42)
     }
 
@@ -119,15 +125,18 @@ final class DependencyKeyWritingReducerTests: BaseTCATestCase {
   }
 }
 
-private struct Feature: Reducer {
+@Reducer
+private struct Feature {
   @Dependency(\.myValue) var myValue
   struct State: Equatable { var value = 0 }
   enum Action { case tap }
-  func reduce(into state: inout State, action: Action) -> Effect<Action> {
-    switch action {
-    case .tap:
-      state.value = self.myValue
-      return .none
+  var body: some Reducer<State, Action> {
+    Reduce { state, action in
+      switch action {
+      case .tap:
+        state.value = self.myValue
+        return .none
+      }
     }
   }
 }

@@ -3,37 +3,38 @@ import Combine
 @_spi(Internals) import ComposableArchitecture
 import Foundation
 
-let storeSuite = BenchmarkSuite(name: "Store") {
+let storeSuite = BenchmarkSuite(name: "Store") { suite in
   var store: StoreOf<Feature>!
   let levels = 5
 
   for level in 1...levels {
-    $0.benchmark("Nested send tap: \(level)") {
+    suite.benchmark("Nested send tap: \(level)") {
       store.send(tap(level: level))
     } setUp: {
       store = Store(initialState: state(level: level)) {
         Feature()
       }
     } tearDown: {
-      precondition(count(of: store.state.value, level: level) == 1)
+      precondition(count(of: store.withState { $0 }, level: level) == 1)
       _cancellationCancellables.removeAll()
     }
   }
   for level in 1...levels {
-    $0.benchmark("Nested send none: \(level)") {
+    suite.benchmark("Nested send none: \(level)") {
       store.send(none(level: level))
     } setUp: {
       store = Store(initialState: state(level: level)) {
         Feature()
       }
     } tearDown: {
-      precondition(count(of: store.state.value, level: level) == 0)
+      precondition(count(of: store.withState { $0 }, level: level) == 0)
       _cancellationCancellables.removeAll()
     }
   }
 }
 
-private struct Feature: Reducer {
+@Reducer
+private struct Feature {
   struct State {
     @PresentationState var child: State?
     var count = 0
@@ -55,7 +56,7 @@ private struct Feature: Reducer {
         return .none
       }
     }
-    .ifLet(\.$child, action: /Action.child) {
+    .ifLet(\.$child, action: \.child) {
       Feature()
     }
   }

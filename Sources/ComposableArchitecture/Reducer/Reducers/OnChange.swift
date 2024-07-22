@@ -5,7 +5,8 @@ extension Reducer {
   /// ``BindingReducer`` makes a deeper change to a struct held in ``BindingState``.
   ///
   /// ```swift
-  /// struct Settings: Reducer {
+  /// @Reducer
+  /// struct Settings {
   ///   struct State {
   ///     @BindingState var userSettings: UserSettings
   ///     // ...
@@ -49,6 +50,7 @@ extension Reducer {
   ///   - oldValue: The old value that failed the comparison check.
   ///   - newValue: The new value that failed the comparison check.
   /// - Returns: A reducer that performs the logic when the state changes.
+  @available(*, deprecated, message: "Use 'onChange(of:)' with and equatable value, instead.")
   @inlinable
   public func onChange<V, R: Reducer>(
     of toValue: @escaping (State) -> V,
@@ -64,7 +66,8 @@ extension Reducer {
   /// ``BindingReducer`` makes a deeper change to a struct held in ``BindingState``.
   ///
   /// ```swift
-  /// struct Settings: Reducer {
+  /// @Reducer
+  /// struct Settings {
   ///   struct State {
   ///     @BindingState var userSettings: UserSettings
   ///     // ...
@@ -111,7 +114,7 @@ extension Reducer {
   }
 }
 
-public struct _OnChangeReducer<Base: Reducer, Value: Equatable, Body: Reducer>: Reducer
+public struct _OnChangeReducer<Base: Reducer, Value, Body: Reducer>: Reducer
 where Base.State == Body.State, Base.Action == Body.Action {
   @usableFromInline
   let base: Base

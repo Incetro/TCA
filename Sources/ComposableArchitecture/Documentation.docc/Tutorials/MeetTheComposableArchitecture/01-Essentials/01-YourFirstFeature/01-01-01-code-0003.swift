@@ -1,11 +1,13 @@
 import ComposableArchitecture
 
-struct CounterFeature: Reducer {
+@Reducer
+struct CounterFeature {
+  @ObservableState
   struct State {
-
+    
   }
-
+  
   enum Action {
-
+    
   }
 }

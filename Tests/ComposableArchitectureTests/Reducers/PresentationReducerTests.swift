@@ -1,8 +1,9 @@
 import ComposableArchitecture
 import XCTest
 
-@MainActor
+@available(*, deprecated, message: "TODO: Update to use case pathable syntax with Swift 5.9")
 final class PresentationReducerTests: BaseTCATestCase {
+  @MainActor
   func testPresentationStateSubscriptCase() {
     enum Child: Equatable {
       case int(Int)
@@ -22,39 +23,39 @@ final class PresentationReducerTests: BaseTCATestCase {
     XCTAssertNil(parent.child)
   }
 
-  #if DEBUG
-    func testPresentationStateSubscriptCase_Unexpected() {
-      enum Child: Equatable {
-        case int(Int)
-        case text(String)
-      }
-
-      struct Parent: Equatable {
-        @PresentationState var child: Child?
-      }
-
-      var parent = Parent(child: .int(42))
-
-      XCTExpectFailure {
-        parent.$child[case: /Child.text]?.append("!")
-      } issueMatcher: {
-        $0.compactDescription == """
-          Can't modify unrelated case "int"
-          """
-      }
-
-      XCTExpectFailure {
-        parent.$child[case: /Child.text] = nil
-      } issueMatcher: {
-        $0.compactDescription == """
-          Can't modify unrelated case "int"
-          """
-      }
-
-      XCTAssertEqual(parent.child, .int(42))
+  @MainActor
+  func testPresentationStateSubscriptCase_Unexpected() {
+    enum Child: Equatable {
+      case int(Int)
+      case text(String)
     }
-  #endif
 
+    struct Parent: Equatable {
+      @PresentationState var child: Child?
+    }
+
+    var parent = Parent(child: .int(42))
+
+    XCTExpectFailure {
+      parent.$child[case: /Child.text]?.append("!")
+    } issueMatcher: {
+      $0.compactDescription == """
+        Can't modify unrelated case "int"
+        """
+    }
+
+    XCTExpectFailure {
+      parent.$child[case: /Child.text] = nil
+    } issueMatcher: {
+      $0.compactDescription == """
+        Can't modify unrelated case "int"
+        """
+    }
+
+    XCTAssertEqual(parent.child, .int(42))
+  }
+
+  @MainActor
   func testPresentation_parentDismissal() async {
     struct Child: Reducer {
       struct State: Equatable {
@@ -64,14 +65,16 @@ final class PresentationReducerTests: BaseTCATestCase {
         case decrementButtonTapped
         case incrementButtonTapped
       }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .decrementButtonTapped:
-          state.count -= 1
-          return .none
-        case .incrementButtonTapped:
-          state.count += 1
-          return .none
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .decrementButtonTapped:
+            state.count -= 1
+            return .none
+          case .incrementButtonTapped:
+            state.count += 1
+            return .none
+          }
         }
       }
     }
@@ -108,7 +111,7 @@ final class PresentationReducerTests: BaseTCATestCase {
       $0.child = Child.State()
     }
     await store.send(.child(.presented(.incrementButtonTapped))) {
-      try (/.some).modify(&$0.child) {
+      XCTModify(&$0.child) {
         $0.count = 1
       }
     }
@@ -117,6 +120,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_parentDismissal_NilOut() async {
     struct Child: Reducer {
       struct State: Equatable {
@@ -126,14 +130,16 @@ final class PresentationReducerTests: BaseTCATestCase {
         case decrementButtonTapped
         case incrementButtonTapped
       }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .decrementButtonTapped:
-          state.count -= 1
-          return .none
-        case .incrementButtonTapped:
-          state.count += 1
-          return .none
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .decrementButtonTapped:
+            state.count -= 1
+            return .none
+          case .incrementButtonTapped:
+            state.count += 1
+            return .none
+          }
         }
       }
     }
@@ -174,7 +180,7 @@ final class PresentationReducerTests: BaseTCATestCase {
       $0.child = Child.State()
     }
     await store.send(.child(.presented(.incrementButtonTapped))) {
-      try (/.some).modify(&$0.child) {
+      XCTModify(&$0.child) {
         $0.count = 1
       }
     }
@@ -183,6 +189,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_childDismissal() async {
     struct Child: Reducer {
       struct State: Equatable {
@@ -194,18 +201,20 @@ final class PresentationReducerTests: BaseTCATestCase {
         case incrementButtonTapped
       }
       @Dependency(\.dismiss) var dismiss
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .closeButtonTapped:
-          return .run { _ in
-            await self.dismiss()
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .closeButtonTapped:
+            return .run { _ in
+              await self.dismiss()
+            }
+          case .decrementButtonTapped:
+            state.count -= 1
+            return .none
+          case .incrementButtonTapped:
+            state.count += 1
+            return .none
           }
-        case .decrementButtonTapped:
-          state.count -= 1
-          return .none
-        case .incrementButtonTapped:
-          state.count += 1
-          return .none
         }
       }
     }
@@ -246,7 +255,7 @@ final class PresentationReducerTests: BaseTCATestCase {
       $0.child = Child.State()
     }
     await store.send(.child(.presented(.decrementButtonTapped))) {
-      try (/.some).modify(&$0.child) {
+      XCTModify(&$0.child) {
         $0.count = -1
       }
     }
@@ -257,6 +266,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_parentDismissal_effects() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -268,17 +278,19 @@ final class PresentationReducerTests: BaseTCATestCase {
           case tick
         }
         @Dependency(\.continuousClock) var clock
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .startButtonTapped:
-            return .run { send in
-              for try await _ in clock.timer(interval: .seconds(1)) {
-                await send(.tick)
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .startButtonTapped:
+              return .run { send in
+                for try await _ in clock.timer(interval: .seconds(1)) {
+                  await send(.tick)
+                }
               }
+            case .tick:
+              state.count += 1
+              return .none
             }
-          case .tick:
-            state.count += 1
-            return .none
           }
         }
       }
@@ -320,12 +332,12 @@ final class PresentationReducerTests: BaseTCATestCase {
       await store.send(.child(.presented(.startButtonTapped)))
       await clock.advance(by: .seconds(2))
       await store.receive(.child(.presented(.tick))) {
-        try (/.some).modify(&$0.child) {
+        XCTModify(&$0.child) {
           $0.count = 1
         }
       }
       await store.receive(.child(.presented(.tick))) {
-        try (/.some).modify(&$0.child) {
+        XCTModify(&$0.child) {
           $0.count = 2
         }
       }
@@ -335,6 +347,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_childDismissal_effects() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -348,22 +361,24 @@ final class PresentationReducerTests: BaseTCATestCase {
         }
         @Dependency(\.continuousClock) var clock
         @Dependency(\.dismiss) var dismiss
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .closeButtonTapped:
-            return .run { _ in
-              await self.dismiss()
-            }
-
-          case .startButtonTapped:
-            return .run { send in
-              for try await _ in clock.timer(interval: .seconds(1)) {
-                await send(.tick)
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .closeButtonTapped:
+              return .run { _ in
+                await self.dismiss()
               }
+
+            case .startButtonTapped:
+              return .run { send in
+                for try await _ in clock.timer(interval: .seconds(1)) {
+                  await send(.tick)
+                }
+              }
+            case .tick:
+              state.count += 1
+              return .none
             }
-          case .tick:
-            state.count += 1
-            return .none
           }
         }
       }
@@ -405,12 +420,12 @@ final class PresentationReducerTests: BaseTCATestCase {
       await store.send(.child(.presented(.startButtonTapped)))
       await clock.advance(by: .seconds(2))
       await store.receive(.child(.presented(.tick))) {
-        try (/.some).modify(&$0.child) {
+        XCTModify(&$0.child) {
           $0.count = 1
         }
       }
       await store.receive(.child(.presented(.tick))) {
-        try (/.some).modify(&$0.child) {
+        XCTModify(&$0.child) {
           $0.count = 2
         }
       }
@@ -421,6 +436,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_identifiableDismissal_effects() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -433,17 +449,19 @@ final class PresentationReducerTests: BaseTCATestCase {
           case tick
         }
         @Dependency(\.continuousClock) var clock
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .startButtonTapped:
-            return .run { send in
-              for try await _ in clock.timer(interval: .seconds(1)) {
-                await send(.tick)
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .startButtonTapped:
+              return .run { send in
+                for try await _ in clock.timer(interval: .seconds(1)) {
+                  await send(.tick)
+                }
               }
+            case .tick:
+              state.count += 1
+              return .none
             }
-          case .tick:
-            state.count += 1
-            return .none
           }
         }
       }
@@ -487,12 +505,12 @@ final class PresentationReducerTests: BaseTCATestCase {
       await store.send(.child(.presented(.startButtonTapped)))
       await clock.advance(by: .seconds(2))
       await store.receive(.child(.presented(.tick))) {
-        try (/.some).modify(&$0.child) {
+        XCTModify(&$0.child) {
           $0.count = 1
         }
       }
       await store.receive(.child(.presented(.tick))) {
-        try (/.some).modify(&$0.child) {
+        XCTModify(&$0.child) {
           $0.count = 2
         }
       }
@@ -506,11 +524,14 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_LeavePresented() async {
     struct Child: Reducer {
       struct State: Equatable {}
       enum Action: Equatable {}
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {}
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
+      }
     }
 
     struct Parent: Reducer {
@@ -546,11 +567,14 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_LeavePresented_FinishStore() async {
     struct Child: Reducer {
       struct State: Equatable {}
       enum Action: Equatable {}
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {}
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
+      }
     }
 
     struct Parent: Reducer {
@@ -587,6 +611,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     await store.finish()
   }
 
+  @MainActor
   func testInertPresentation() async {
     if #available(iOS 15, macOS 12, tvOS 15, watchOS 8, *) {
       struct Parent: Reducer {
@@ -627,6 +652,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testInertPresentation_dismissal() async {
     if #available(iOS 15, macOS 12, tvOS 15, watchOS 8, *) {
       struct Parent: Reducer {
@@ -670,6 +696,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testInertPresentation_automaticDismissal() async {
     if #available(iOS 15, macOS 12, tvOS 15, watchOS 8, *) {
       struct Parent: Reducer {
@@ -728,6 +755,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_hydratedDestination_childDismissal() async {
     struct Child: Reducer {
       struct State: Equatable {
@@ -739,18 +767,20 @@ final class PresentationReducerTests: BaseTCATestCase {
         case incrementButtonTapped
       }
       @Dependency(\.dismiss) var dismiss
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .closeButtonTapped:
-          return .run { _ in
-            await self.dismiss()
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .closeButtonTapped:
+            return .run { _ in
+              await self.dismiss()
+            }
+          case .decrementButtonTapped:
+            state.count -= 1
+            return .none
+          case .incrementButtonTapped:
+            state.count += 1
+            return .none
           }
-        case .decrementButtonTapped:
-          state.count -= 1
-          return .none
-        case .incrementButtonTapped:
-          state.count += 1
-          return .none
         }
       }
     }
@@ -789,6 +819,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_rehydratedDestination_childDismissal() async {
     struct ChildFeature: Reducer {
       struct State: Equatable {}
@@ -856,6 +887,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testEnumPresentation() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -870,21 +902,23 @@ final class PresentationReducerTests: BaseTCATestCase {
         }
         @Dependency(\.continuousClock) var clock
         @Dependency(\.dismiss) var dismiss
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .closeButtonTapped:
-            return .run { _ in
-              await self.dismiss()
-            }
-          case .startButtonTapped:
-            return .run { send in
-              for try await _ in clock.timer(interval: .seconds(1)) {
-                await send(.tick)
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .closeButtonTapped:
+              return .run { _ in
+                await self.dismiss()
               }
+            case .startButtonTapped:
+              return .run { send in
+                for try await _ in clock.timer(interval: .seconds(1)) {
+                  await send(.tick)
+                }
+              }
+            case .tick:
+              state.count += 1
+              return .none
             }
-          case .tick:
-            state.count += 1
-            return .none
           }
         }
       }
@@ -1033,6 +1067,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testNavigation_cancelID_childCancellation() async {
     struct Child: Reducer {
       struct State: Equatable {}
@@ -1040,16 +1075,18 @@ final class PresentationReducerTests: BaseTCATestCase {
         case startButtonTapped
         case stopButtonTapped
       }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .startButtonTapped:
-          return .run { _ in
-            try await Task.never()
-          }
-          .cancellable(id: 42)
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .startButtonTapped:
+            return .run { _ in
+              try await Task.never()
+            }
+            .cancellable(id: 42)
 
-        case .stopButtonTapped:
-          return .cancel(id: 42)
+          case .stopButtonTapped:
+            return .cancel(id: 42)
+          }
         }
       }
     }
@@ -1089,6 +1126,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     await presentationTask.cancel()
   }
 
+  @MainActor
   func testNavigation_cancelID_parentCancellation() async {
     struct Grandchild: Reducer {
       struct State: Equatable {}
@@ -1096,13 +1134,15 @@ final class PresentationReducerTests: BaseTCATestCase {
         case startButtonTapped
       }
       enum CancelID { case effect }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .startButtonTapped:
-          return .run { _ in
-            try await Task.never()
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .startButtonTapped:
+            return .run { _ in
+              try await Task.never()
+            }
+            .cancellable(id: CancelID.effect)
           }
-          .cancellable(id: CancelID.effect)
         }
       }
     }
@@ -1184,6 +1224,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     await childPresentationTask.cancel()
   }
 
+  @MainActor
   func testNavigation_cancelID_parentCancelTwoChildren() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -1196,18 +1237,20 @@ final class PresentationReducerTests: BaseTCATestCase {
         }
         enum CancelID { case effect }
         @Dependency(\.continuousClock) var clock
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case let .response(value):
-            state.count = value
-            return .none
-          case .startButtonTapped:
-            return .run { send in
-              for await _ in self.clock.timer(interval: .seconds(1)) {
-                await send(.response(42))
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case let .response(value):
+              state.count = value
+              return .none
+            case .startButtonTapped:
+              return .run { send in
+                for await _ in self.clock.timer(interval: .seconds(1)) {
+                  await send(.response(42))
+                }
               }
+              .cancellable(id: CancelID.effect)
             }
-            .cancellable(id: CancelID.effect)
           }
         }
       }
@@ -1277,6 +1320,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testNavigation_cancelID_childCannotCancelSibling() async throws {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -1290,20 +1334,22 @@ final class PresentationReducerTests: BaseTCATestCase {
         }
         enum CancelID { case effect }
         @Dependency(\.continuousClock) var clock
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case let .response(value):
-            state.count = value
-            return .none
-          case .startButtonTapped:
-            return .run { send in
-              for await _ in self.clock.timer(interval: .seconds(1)) {
-                await send(.response(42))
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case let .response(value):
+              state.count = value
+              return .none
+            case .startButtonTapped:
+              return .run { send in
+                for await _ in self.clock.timer(interval: .seconds(1)) {
+                  await send(.response(42))
+                }
               }
+              .cancellable(id: CancelID.effect)
+            case .stopButtonTapped:
+              return .cancel(id: CancelID.effect)
             }
-            .cancellable(id: CancelID.effect)
-          case .stopButtonTapped:
-            return .cancel(id: CancelID.effect)
           }
         }
       }
@@ -1377,6 +1423,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testNavigation_cancelID_childCannotCancelIdentifiableSibling() async throws {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -1391,20 +1438,22 @@ final class PresentationReducerTests: BaseTCATestCase {
         }
         enum CancelID { case effect }
         @Dependency(\.continuousClock) var clock
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case let .response(value):
-            state.count = value
-            return .none
-          case .startButtonTapped:
-            return .run { send in
-              for await _ in self.clock.timer(interval: .seconds(1)) {
-                await send(.response(42))
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case let .response(value):
+              state.count = value
+              return .none
+            case .startButtonTapped:
+              return .run { send in
+                for await _ in self.clock.timer(interval: .seconds(1)) {
+                  await send(.response(42))
+                }
               }
+              .cancellable(id: CancelID.effect)
+            case .stopButtonTapped:
+              return .cancel(id: CancelID.effect)
             }
-            .cancellable(id: CancelID.effect)
-          case .stopButtonTapped:
-            return .cancel(id: CancelID.effect)
           }
         }
       }
@@ -1480,6 +1529,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testNavigation_cancelID_childCannotCancelParent() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -1487,10 +1537,12 @@ final class PresentationReducerTests: BaseTCATestCase {
         enum Action: Equatable {
           case stopButtonTapped
         }
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .stopButtonTapped:
-            return .cancel(id: Parent.CancelID.effect)
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .stopButtonTapped:
+              return .cancel(id: Parent.CancelID.effect)
+            }
           }
         }
       }
@@ -1558,6 +1610,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testNavigation_cancelID_parentDismissGrandchild() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Grandchild: Reducer {
@@ -1568,16 +1621,18 @@ final class PresentationReducerTests: BaseTCATestCase {
         }
         enum CancelID { case effect }
         @Dependency(\.continuousClock) var clock
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .response:
-            return .none
-          case .startButtonTapped:
-            return .run { send in
-              try await clock.sleep(for: .seconds(0))
-              await send(.response(42))
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .response:
+              return .none
+            case .startButtonTapped:
+              return .run { send in
+                try await clock.sleep(for: .seconds(0))
+                await send(.response(42))
+              }
+              .cancellable(id: CancelID.effect)
             }
-            .cancellable(id: CancelID.effect)
           }
         }
       }
@@ -1661,126 +1716,127 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
-  #if DEBUG
-    func testRuntimeWarn_NilChild_SendDismissAction() async {
-      struct Child: Reducer {
-        struct State: Equatable {}
-        enum Action: Equatable {}
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        }
+  @MainActor
+  func testRuntimeWarn_NilChild_SendDismissAction() async {
+    struct Child: Reducer {
+      struct State: Equatable {}
+      enum Action: Equatable {}
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
       }
-
-      struct Parent: Reducer {
-        struct State: Equatable {
-          @PresentationState var child: Child.State?
-        }
-        enum Action: Equatable {
-          case child(PresentationAction<Child.Action>)
-        }
-        var body: some Reducer<State, Action> {
-          Reduce { state, action in
-            .none
-          }
-          .ifLet(\.$child, action: /Action.child) {
-            Child()
-          }
-        }
-      }
-
-      let store = TestStore(initialState: Parent.State()) {
-        Parent()
-      }
-
-      XCTExpectFailure {
-        $0.compactDescription == """
-          An "ifLet" at \
-          "ComposableArchitectureTests/PresentationReducerTests.swift:\(#line - 13)" received a \
-          presentation action when destination state was absent. …
-
-            Action:
-              PresentationReducerTests.Parent.Action.child(.dismiss)
-
-          This is generally considered an application logic error, and can happen for a few reasons:
-
-          • A parent reducer set destination state to "nil" before this reducer ran. This reducer \
-          must run before any other reducer sets destination state to "nil". This ensures that \
-          destination reducers can handle their actions while their state is still present.
-
-          • This action was sent to the store while destination state was "nil". Make sure that \
-          actions for this reducer can only be sent from a view store when state is present, or \
-          from effects that start from this reducer. In SwiftUI applications, use a Composable \
-          Architecture view modifier like "sheet(store:…)".
-          """
-      }
-
-      await store.send(.child(.dismiss))
     }
-  #endif
 
-  #if DEBUG
-    func testRuntimeWarn_NilChild_SendChildAction() async {
-      struct Child: Reducer {
-        struct State: Equatable {}
-        enum Action: Equatable {
-          case tap
-        }
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
+    struct Parent: Reducer {
+      struct State: Equatable {
+        @PresentationState var child: Child.State?
+      }
+      enum Action: Equatable {
+        case child(PresentationAction<Child.Action>)
+      }
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
           .none
         }
-      }
-
-      struct Parent: Reducer {
-        struct State: Equatable {
-          @PresentationState var child: Child.State?
-        }
-        enum Action: Equatable {
-          case child(PresentationAction<Child.Action>)
-        }
-        var body: some ReducerOf<Self> {
-          Reduce { state, action in
-            .none
-          }
-          .ifLet(\.$child, action: /Action.child) {
-            Child()
-          }
+        .ifLet(\.$child, action: /Action.child) {
+          Child()
         }
       }
-
-      let store = TestStore(initialState: Parent.State()) {
-        Parent()
-      }
-
-      XCTExpectFailure {
-        $0.compactDescription == """
-          An "ifLet" at \
-          "ComposableArchitectureTests/PresentationReducerTests.swift:\(#line - 13)" received a \
-          presentation action when destination state was absent. …
-
-            Action:
-              PresentationReducerTests.Parent.Action.child(.presented(.tap))
-
-          This is generally considered an application logic error, and can happen for a few reasons:
-
-          • A parent reducer set destination state to "nil" before this reducer ran. This reducer \
-          must run before any other reducer sets destination state to "nil". This ensures that \
-          destination reducers can handle their actions while their state is still present.
-
-          • This action was sent to the store while destination state was "nil". Make sure that \
-          actions for this reducer can only be sent from a view store when state is present, or \
-          from effects that start from this reducer. In SwiftUI applications, use a Composable \
-          Architecture view modifier like "sheet(store:…)".
-          """
-      }
-
-      await store.send(.child(.presented(.tap)))
     }
-  #endif
 
+    let store = TestStore(initialState: Parent.State()) {
+      Parent()
+    }
+
+    XCTExpectFailure {
+      $0.compactDescription == """
+        An "ifLet" at \
+        "ComposableArchitectureTests/PresentationReducerTests.swift:\(#line - 13)" received a \
+        presentation action when destination state was absent. …
+
+          Action:
+            PresentationReducerTests.Parent.Action.child(.dismiss)
+
+        This is generally considered an application logic error, and can happen for a few reasons:
+
+        • A parent reducer set destination state to "nil" before this reducer ran. This reducer \
+        must run before any other reducer sets destination state to "nil". This ensures that \
+        destination reducers can handle their actions while their state is still present.
+
+        • This action was sent to the store while destination state was "nil". Make sure that \
+        actions for this reducer can only be sent from a view store when state is present, or \
+        from effects that start from this reducer. In SwiftUI applications, use a Composable \
+        Architecture view modifier like "sheet(store:…)".
+        """
+    }
+
+    await store.send(.child(.dismiss))
+  }
+
+  @MainActor
+  func testRuntimeWarn_NilChild_SendChildAction() async {
+    struct Child: Reducer {
+      struct State: Equatable {}
+      enum Action: Equatable {
+        case tap
+      }
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
+      }
+    }
+
+    struct Parent: Reducer {
+      struct State: Equatable {
+        @PresentationState var child: Child.State?
+      }
+      enum Action: Equatable {
+        case child(PresentationAction<Child.Action>)
+      }
+      var body: some ReducerOf<Self> {
+        Reduce { state, action in
+          .none
+        }
+        .ifLet(\.$child, action: /Action.child) {
+          Child()
+        }
+      }
+    }
+
+    let store = TestStore(initialState: Parent.State()) {
+      Parent()
+    }
+
+    XCTExpectFailure {
+      $0.compactDescription == """
+        An "ifLet" at \
+        "ComposableArchitectureTests/PresentationReducerTests.swift:\(#line - 13)" received a \
+        presentation action when destination state was absent. …
+
+          Action:
+            PresentationReducerTests.Parent.Action.child(.presented(.tap))
+
+        This is generally considered an application logic error, and can happen for a few reasons:
+
+        • A parent reducer set destination state to "nil" before this reducer ran. This reducer \
+        must run before any other reducer sets destination state to "nil". This ensures that \
+        destination reducers can handle their actions while their state is still present.
+
+        • This action was sent to the store while destination state was "nil". Make sure that \
+        actions for this reducer can only be sent from a view store when state is present, or \
+        from effects that start from this reducer. In SwiftUI applications, use a Composable \
+        Architecture view modifier like "sheet(store:…)".
+        """
+    }
+
+    await store.send(.child(.presented(.tap)))
+  }
+
+  @MainActor
   func testRehydrateSameChild_SendDismissAction() async {
     struct Child: Reducer {
       struct State: Equatable {}
       enum Action: Equatable {}
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
       }
     }
 
@@ -1816,13 +1872,15 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testRehydrateDifferentChild_SendDismissAction() async {
     struct Child: Reducer {
       struct State: Equatable, Identifiable {
         let id: UUID
       }
       enum Action: Equatable {}
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
       }
     }
 
@@ -1870,6 +1928,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_parentNilsOutChildWithLongLivingEffect() async {
     struct Child: Reducer {
       struct State: Equatable {
@@ -1880,15 +1939,17 @@ final class PresentationReducerTests: BaseTCATestCase {
         case dismissMe
         case task
       }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .dismiss:
-          return .send(.dismissMe)
-        case .dismissMe:
-          return .none
-        case .task:
-          return .run { _ in
-            try await Task.never()
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .dismiss:
+            return .send(.dismissMe)
+          case .dismissMe:
+            return .none
+          case .task:
+            return .run { _ in
+              try await Task.never()
+            }
           }
         }
       }
@@ -1935,6 +1996,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_DestinationEnum_IdentityChange() async {
     struct Child: Reducer {
       struct State: Equatable, Identifiable {
@@ -1948,20 +2010,22 @@ final class PresentationReducerTests: BaseTCATestCase {
       }
       @Dependency(\.mainQueue) var mainQueue
       @Dependency(\.uuid) var uuid
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .resetIdentity:
-          state.count = 0
-          state.id = self.uuid()
-          return .none
-        case .response:
-          state.count = 999
-          return .none
-        case .tap:
-          state.count += 1
-          return .run { send in
-            try await self.mainQueue.sleep(for: .seconds(1))
-            await send(.response)
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .resetIdentity:
+            state.count = 0
+            state.id = self.uuid()
+            return .none
+          case .response:
+            state.count = 999
+            return .none
+          case .tap:
+            state.count += 1
+            return .run { send in
+              try await self.mainQueue.sleep(for: .seconds(1))
+              await send(.response)
+            }
           }
         }
       }
@@ -2035,6 +2099,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testAlertThenDialog() async {
     if #available(iOS 15, macOS 12, tvOS 15, watchOS 8, *) {
       struct Feature: Reducer {
@@ -2137,11 +2202,13 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_leaveChildPresented() async {
     struct Child: Reducer {
       struct State: Equatable {}
       enum Action: Equatable {}
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
       }
     }
 
@@ -2178,12 +2245,15 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresentation_leaveChildPresented_WithLongLivingEffect() async {
     struct Child: Reducer {
       struct State: Equatable {}
       enum Action: Equatable { case tap }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        .run { _ in try await Task.never() }
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          .run { _ in try await Task.never() }
+        }
       }
     }
 
@@ -2228,26 +2298,31 @@ final class PresentationReducerTests: BaseTCATestCase {
             An effect returned for this action is still running. It must complete before the end \
             of the test. …
 
-            To fix, inspect any effects the reducer returns for this action and ensure that all \
-            of them complete by the end of the test. There are a few reasons why an effect may \
-            not have completed:
+            To fix, inspect any effects the reducer returns for this action and ensure that all of \
+            them complete by the end of the test. There are a few reasons why an effect may not \
+            have completed:
 
             • If using async/await in your effect, it may need a little bit of time to properly \
             finish. To fix you can simply perform "await store.finish()" at the end of your test.
 
-            • If an effect uses a clock/scheduler (via "receive(on:)", "delay", "debounce", \
+            • If an effect uses a clock (or scheduler, via "receive(on:)", "delay", "debounce", \
             etc.), make sure that you wait enough time for it to perform the effect. If you are \
-            using a test clock/scheduler, advance it so that the effects may complete, or \
-            consider using an immediate clock/scheduler to immediately perform the effect instead.
+            using a test clock/scheduler, advance it so that the effects may complete, or consider \
+            using an immediate clock/scheduler to immediately perform the effect instead.
 
             • If you are returning a long-living effect (timers, notifications, subjects, etc.), \
             then make sure those effects are torn down by marking the effect ".cancellable" and \
             returning a corresponding cancellation effect ("Effect.cancel") from another action, \
             or, if your effect is driven by a Combine subject, send it a completion.
+
+            • If you do not wish to assert on these effects, perform "await \
+            store.skipInFlightEffects()", or consider using a non-exhaustive test store: \
+            "store.exhaustivity = .off".
             """
     }
   }
 
+  @MainActor
   func testCancelInFlightEffects() async {
     struct Child: Reducer {
       struct State: Equatable {
@@ -2259,17 +2334,19 @@ final class PresentationReducerTests: BaseTCATestCase {
       }
       @Dependency(\.mainQueue) var mainQueue
       struct CancelID: Hashable {}
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case let .response(value):
-          state.count = value
-          return .none
-        case .tap:
-          return .run { send in
-            try await mainQueue.sleep(for: .seconds(1))
-            await send(.response(42))
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case let .response(value):
+            state.count = value
+            return .none
+          case .tap:
+            return .run { send in
+              try await mainQueue.sleep(for: .seconds(1))
+              await send(.response(42))
+            }
+            .cancellable(id: CancelID(), cancelInFlight: true)
           }
-          .cancellable(id: CancelID(), cancelInFlight: true)
         }
       }
     }
@@ -2334,6 +2411,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testOuterCancellation() async {
     struct Child: Reducer {
       struct State: Equatable {}
@@ -2428,6 +2506,7 @@ final class PresentationReducerTests: BaseTCATestCase {
     await store.send(.tapAfter)
   }
 
+  @MainActor
   func testPresentation_leaveAlertPresentedForNonAlertActions() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -2438,14 +2517,16 @@ final class PresentationReducerTests: BaseTCATestCase {
           case decrementButtonTapped
           case incrementButtonTapped
         }
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .decrementButtonTapped:
-            state.count -= 1
-            return .none
-          case .incrementButtonTapped:
-            state.count += 1
-            return .none
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .decrementButtonTapped:
+              state.count -= 1
+              return .none
+            case .incrementButtonTapped:
+              state.count += 1
+              return .none
+            }
           }
         }
       }
@@ -2528,17 +2609,77 @@ final class PresentationReducerTests: BaseTCATestCase {
         )
       }
 
-      #if DEBUG
-        XCTExpectFailure {
-          $0.compactDescription.hasPrefix(
-            """
-            A "Scope" at "\(#fileID):\(line)" received a child action when child state was set to a \
-            different case. …
-            """
-          )
-        }
-      #endif
+      XCTExpectFailure {
+        $0.compactDescription.hasPrefix(
+          """
+          A "Scope" at "\(#fileID):\(line)" received a child action when child state was set to a \
+          different case. …
+          """
+        )
+      }
       await store.send(.destination(.presented(.child(.decrementButtonTapped))))
+    }
+  }
+
+  @MainActor
+  func testFastPathEquality() {
+    struct State: Equatable {
+      static func == (lhs: Self, rhs: Self) -> Bool {
+        Thread.sleep(forTimeInterval: 5)
+        return true
+      }
+    }
+
+    @PresentationState var state = State()
+    let start = Date()
+    XCTAssertEqual($state, $state)
+    XCTAssertLessThan(Date().timeIntervalSince(start), 0.1)
+  }
+
+  @MainActor
+  func testNestedDismiss() async {
+    let store = TestStore(initialState: NestedDismissFeature.State()) {
+      NestedDismissFeature()
+    }
+
+    await store.send(\.presentButtonTapped) {
+      $0.child = NestedDismissFeature.State()
+    }
+    await store.send(\.child.presentButtonTapped) {
+      $0.child?.child = NestedDismissFeature.State()
+    }
+    await store.send(\.child.child.dismissButtonTapped)
+    await store.receive(\.child.child.dismiss) {
+      $0.child?.child = nil
+    }
+  }
+}
+
+@Reducer
+private struct NestedDismissFeature {
+  struct State: Equatable {
+    @PresentationState var child: NestedDismissFeature.State?
+  }
+  enum Action {
+    case child(PresentationAction<NestedDismissFeature.Action>)
+    case dismissButtonTapped
+    case presentButtonTapped
+  }
+  @Dependency(\.dismiss) var dismiss
+  var body: some ReducerOf<Self> {
+    Reduce { state, action in
+      switch action {
+      case .child:
+        return .none
+      case .dismissButtonTapped:
+        return .run { _ in await dismiss() }
+      case .presentButtonTapped:
+        state.child = State()
+        return .none
+      }
+    }
+    .ifLet(\.$child, action: \.child) {
+      Self()
     }
   }
 }

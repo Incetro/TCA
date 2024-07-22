@@ -2,10 +2,10 @@ import Combine
 import ComposableArchitecture
 import XCTest
 
-@MainActor
 final class EffectThrottleTests: BaseTCATestCase {
   let mainQueue = DispatchQueue.test
 
+  @MainActor
   func testThrottleLatest_Publisher() async {
     let store = TestStore(initialState: ThrottleFeature.State()) {
       ThrottleFeature(id: #function, latest: true)
@@ -45,6 +45,7 @@ final class EffectThrottleTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testThrottleLatest_Async() async {
     let store = TestStore(initialState: ThrottleFeature.State()) {
       ThrottleFeature(id: #function, latest: true)
@@ -84,6 +85,7 @@ final class EffectThrottleTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testThrottleFirst_Publisher() async {
     let store = TestStore(initialState: ThrottleFeature.State()) {
       ThrottleFeature(id: #function, latest: false)
@@ -123,6 +125,7 @@ final class EffectThrottleTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testThrottleAfterInterval_Publisher() async {
     let store = TestStore(initialState: ThrottleFeature.State()) {
       ThrottleFeature(id: #function, latest: true)
@@ -144,6 +147,7 @@ final class EffectThrottleTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testThrottleEmitsFirstValueOnce_Publisher() async {
     let store = TestStore(initialState: ThrottleFeature.State()) {
       ThrottleFeature(id: #function, latest: true)
@@ -166,7 +170,8 @@ final class EffectThrottleTests: BaseTCATestCase {
   }
 }
 
-struct ThrottleFeature: Reducer {
+@Reducer
+struct ThrottleFeature {
   struct State: Equatable {
     var count = 0
   }
@@ -177,14 +182,16 @@ struct ThrottleFeature: Reducer {
   let id: String
   let latest: Bool
   @Dependency(\.mainQueue) var mainQueue
-  func reduce(into state: inout State, action: Action) -> Effect<Action> {
-    switch action {
-    case let .tap(value):
-      return .send(.throttledResponse(value))
-        .throttle(id: self.id, for: .seconds(1), scheduler: self.mainQueue, latest: self.latest)
-    case let .throttledResponse(value):
-      state.count = value
-      return .none
+  var body: some Reducer<State, Action> {
+    Reduce { state, action in
+      switch action {
+      case let .tap(value):
+        return .send(.throttledResponse(value))
+          .throttle(id: self.id, for: .seconds(1), scheduler: self.mainQueue, latest: self.latest)
+      case let .throttledResponse(value):
+        state.count = value
+        return .none
+      }
     }
   }
 }

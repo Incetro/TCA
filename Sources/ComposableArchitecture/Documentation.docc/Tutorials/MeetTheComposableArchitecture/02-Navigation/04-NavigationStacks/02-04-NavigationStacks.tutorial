@@ -12,40 +12,40 @@
     
     @Steps {
       @Step {
-        Create a new file called ContactDetailFeature.swift, import the Composable Architecture, and start
-        a stub of a reducer conformance.
+        Create a new file called ContactDetailFeature.swift, import the Composable Architecture, and 
+        start a stub of a reducer by using the ``ComposableArchitecture/Reducer()`` macro.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0000)
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0000.swift)
       }
       
       @Step {
-        Add a `State` struct to fulfill that requirement for the 
+        Add a ``ComposableArchitecture/Reducer/State`` struct to fulfill that requirement for the 
         ``ComposableArchitecture/Reducer`` protocol. The only state we currently need is the
         contact, and it can be `let` since we do not plan on mutating it from this screen.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0001)
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0001.swift)
       }
       
       @Step {
-        Add an `Action` enum to fulfill that requirement for the
+        Add an ``ComposableArchitecture/Reducer/Action`` enum to fulfill that requirement for the
         ``ComposableArchitecture/Reducer`` protocol. There are not currently any actions that can
         be performed in this feature, so we will leave it empty.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0002)
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0002.swift)
       }
       
       @Step {
-        Implement a basic `body` property to fulfill that requirement of
-        ``ComposableArchitecture/Reducer`` protocol. Since there are no actions in this feature
-        there is nothing we can do in the reducer. More will be added to this later.
+        Implement a basic ``ComposableArchitecture/Reducer/body-20w8t`` property to fulfill that 
+        requirement of ``ComposableArchitecture/Reducer`` protocol. Since there are no actions in 
+        this feature there is nothing we can do in the reducer. More will be added to this later.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0003)
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0003.swift)
       }
       
       @Step {
         Create a stub for a `ContactDetailView`.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0004, reset: true)
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0004.swift, reset: true)
       }
       
       @Step {
@@ -53,21 +53,20 @@
         `ContactDetailFeature` domain, allowing it to observe the feature's state changes and 
         send actions.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0005)
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0005.swift)
       }
       
       @Step {
-        Observe the store so that we can get access to state using 
-        ``ComposableArchitecture/WithViewStore``. There is no real information to show in this 
-        view now other than the contact's name, but more will be added later.
+        Stub out a basic form. There is no real information to show in this view now other than the
+        contact's name, but more will be added later.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0006)
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0006.swift)
       }
       
       @Step {
         Add a preview so that we can see what the view looks like.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0007) {
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-01-code-0007.swift) {
           @Image(source: ch02-sub04-sec01-image-0000)
         }
       }
@@ -94,7 +93,7 @@
         Composable Architecture, and makes it easy and ergonomic to integrate stack navigation
         into your applications.
         
-        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0000, previousFile: 02-04-02-code-0000-previous) 
+        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0000.swift, previousFile: 02-04-02-code-0000-previous.swift) 
       }
       
       @Step {
@@ -106,48 +105,52 @@
         We will also handle the `.path` case in the reducer and return 
         ``ComposableArchitecture/Effect/none`` for now.
         
-        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0001) 
+        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0001.swift) 
       }
       
       @Step {
         At the very end of the reducer use the
-        ``ComposableArchitecture/Reducer/forEach(_:action:destination:fileID:line:)`` operator to
-        integrate the `ContactDetailFeature` into the stack of the `ContactsFeature`.
+        ``ComposableArchitecture/Reducer/forEach(_:action:destination:fileID:line:)-582rd`` operator 
+        to integrate the `ContactDetailFeature` into the stack of the `ContactsFeature`.
         
         > Tip: Scroll down to the bottom of the code snippet to see the application of the
         > `forEach` operator.
         
-        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0002) 
+        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0002.swift) 
       }
       
       @Step {
         Go to the `ContactsView` that holds the view for the contacts list. Swap out the
-        `NavigationStack` for a ``ComposableArchitecture/NavigationStackStore``. This is a type
-        specifically tuned for driving stacks from a ``ComposableArchitecture/Store``. 
-        You hand it a store that is scoped down to ``ComposableArchitecture/StackState`` and
-        ``ComposableArchitecture/StackAction``, and it handles the rest.
+        `NavigationStack` for ``SwiftUI/NavigationStack/init(path:root:destination:fileID:line:)``, 
+        which is a special initializer that is specifically tuned for driving stacks from a
+        ``ComposableArchitecture/Store``. 
+        You hand it a binding to a store that is scoped down to
+        ``ComposableArchitecture/StackState`` and ``ComposableArchitecture/StackAction``, and it
+        handles the rest.
         
-        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0003, previousFile: 02-04-02-code-0003-previous) 
+        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0003.swift, previousFile: 02-04-02-code-0003-previous.swift) 
       }
       
       @Step {
-        ``ComposableArchitecture/NavigationStackStore`` takes two trailing closures. The first is
-        for the root of the stack, which is our list of contacts. The second is to describe the
-        destinations that can be navigated to. It is handled a store that is focused on the domain
-        of just a single element in the stack.
+        ``SwiftUI/NavigationStack/init(path:root:destination:fileID:line:)`` takes two trailing 
+        closures. The first is for the root of the stack, which is our list of contacts. The second 
+        is to describe the destinations that can be navigated to. It is handled a store that is 
+        focused on the domain of just a single element in the stack.
         
-        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0004) 
+        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0004.swift) 
       }
       
       @Step {
         Wrap the row in the contacts list in a `NavigationLink`, using the special 
-        `NavigationLink(state:)` initializer that ships with this library. We are also applying a
-        `.borderless` button style so that we can have the delete button in the row too.
+        ``SwiftUI/NavigationLink/init(state:label:fileID:line:)`` initializer that ships with this
+        library. We are also applying a `.borderless` button style so that we can have the delete
+        button in the row too.
         
-        > Warning: It is necessary to use the `init(state)` initializer on `NavigationLink`, 
-        > instead of the `init(value:)` that comes with SwiftUI.
+        > Warning: It is necessary to use the
+        > ``SwiftUI/NavigationLink/init(state:label:fileID:line:)`` initializer on `NavigationLink`
+        > instead of the `init(value:)` initializer that comes with SwiftUI.
         
-        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0005, previousFile: 02-04-02-code-0005-previous) 
+        @Code(name: "ContactsFeature.swift", file: 02-04-02-code-0005.swift, previousFile: 02-04-02-code-0005-previous.swift) 
       }
       
       @Step {
@@ -172,7 +175,7 @@
         will start by adding some optional ``ComposableArchitecture/PresentationState`` to represent
         show the alert.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-03-code-0000, previousFile: 02-04-03-code-0000-previous) 
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-03-code-0000.swift, previousFile: 02-04-03-code-0000-previous.swift) 
       }
       
       @Step {
@@ -183,7 +186,7 @@
         > Note: The alert and delegate actions do not need an ID like was needed before. You will
         > see why soon.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-03-code-0001) 
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-03-code-0001.swift) 
       }
       
       @Step {
@@ -193,14 +196,14 @@
         dependency, and we have extracted the alert state to its own helper to make it easier to 
         test later.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-03-code-0002) 
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-03-code-0002.swift) 
       }
       
       @Step {
         Go to the `ContactDetailView` struct and add a button for deleting the contact, as well as
         use the `alert(store:)` modifier to show an alert with the `alert` state becomes non-`nil`.
         
-        @Code(name: "ContactDetailFeature.swift", file: 02-04-03-code-0003, previousFile: 02-04-03-code-0003-previous) 
+        @Code(name: "ContactDetailFeature.swift", file: 02-04-03-code-0003.swift, previousFile: 02-04-03-code-0003-previous.swift) 
       }
       
       @Step {
@@ -209,7 +212,7 @@
         `.delegate(.confirmDeletion)` action is sent, and in that case remove the contact from the
         array.
         
-        @Code(name: "ContactsFeature.swift", file: 02-04-03-code-0004, previousFile: 02-04-03-code-0004-previous) 
+        @Code(name: "ContactsFeature.swift", file: 02-04-03-code-0004.swift, previousFile: 02-04-03-code-0004-previous.swift) 
       }
       
       @Step {

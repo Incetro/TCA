@@ -8,7 +8,8 @@ import SwiftUI
 /// user is logged-in or not:
 ///
 /// ```swift
-/// struct AppFeature: Reducer {
+/// @Reducer
+/// struct AppFeature {
 ///   enum State {
 ///     case loggedIn(LoggedInState)
 ///     case loggedOut(LoggedOutState)
@@ -49,9 +50,29 @@ import SwiftUI
 /// > it changes. As such, you should not rely on this value for anything other than checking the
 /// > current case, _e.g._ by switching on it and routing to an appropriate `CaseLet`.
 ///
-/// See ``Reducer/ifCaseLet(_:action:then:fileID:line:)`` and
-/// ``Scope/init(state:action:child:fileID:line:)`` for embedding reducers that operate on each case
-/// of an enum in reducers that operate on the entire enum.
+/// See ``Reducer/ifCaseLet(_:action:then:fileID:line:)-3k4yb`` and
+/// ``Scope/init(state:action:child:fileID:line:)-7yj7l`` for embedding reducers that operate on
+/// each case of an enum in reducers that operate on the entire enum.
+@available(
+  iOS, deprecated: 9999,
+  message:
+    "Use 'switch' with a store of observable state, instead. For more information, see the following article: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Replacing-SwitchStore-and-CaseLet-with-switch-and-case]"
+)
+@available(
+  macOS, deprecated: 9999,
+  message:
+    "Use 'switch' with a store of observable state, instead. For more information, see the following article: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Replacing-SwitchStore-and-CaseLet-with-switch-and-case]"
+)
+@available(
+  tvOS, deprecated: 9999,
+  message:
+    "Use 'switch' with a store of observable state, instead. For more information, see the following article: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Replacing-SwitchStore-and-CaseLet-with-switch-and-case]"
+)
+@available(
+  watchOS, deprecated: 9999,
+  message:
+    "Use 'switch' with a store of observable state, instead. For more information, see the following article: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Replacing-SwitchStore-and-CaseLet-with-switch-and-case]"
+)
 public struct SwitchStore<State, Action, Content: View>: View {
   public let store: Store<State, Action>
   public let content: (State) -> Content
@@ -75,6 +96,26 @@ public struct SwitchStore<State, Action, Content: View>: View {
 }
 
 /// A view that handles a specific case of enum state in a ``SwitchStore``.
+@available(
+  iOS, deprecated: 9999,
+  message:
+    "Use 'switch' with a store of observable state, instead. For more information, see the following article: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Replacing-SwitchStore-and-CaseLet-with-switch-and-case]"
+)
+@available(
+  macOS, deprecated: 9999,
+  message:
+    "Use 'switch' with a store of observable state, instead. For more information, see the following article: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Replacing-SwitchStore-and-CaseLet-with-switch-and-case]"
+)
+@available(
+  tvOS, deprecated: 9999,
+  message:
+    "Use 'switch' with a store of observable state, instead. For more information, see the following article: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Replacing-SwitchStore-and-CaseLet-with-switch-and-case]"
+)
+@available(
+  watchOS, deprecated: 9999,
+  message:
+    "Use 'switch' with a store of observable state, instead. For more information, see the following article: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Replacing-SwitchStore-and-CaseLet-with-switch-and-case]"
+)
 public struct CaseLet<EnumState, EnumAction, CaseState, CaseAction, Content: View>: View {
   public let toCaseState: (EnumState) -> CaseState?
   public let fromCaseAction: (CaseAction) -> EnumAction
@@ -111,8 +152,10 @@ public struct CaseLet<EnumState, EnumAction, CaseState, CaseAction, Content: Vie
   public var body: some View {
     IfLetStore(
       self.store.wrappedValue.scope(
-        state: self.toCaseState,
-        action: self.fromCaseAction
+        id: nil,
+        state: ToState(self.toCaseState),
+        action: self.fromCaseAction,
+        isInvalid: nil
       ),
       then: self.content,
       else: {
@@ -157,7 +200,7 @@ public struct _CaseLetMismatchView<State, Action>: View {
         Warning: A "CaseLet" at "\(self.fileID):\(self.line)" was encountered when state was set \
         to another case:
 
-            \(debugCaseOutput(self.store.wrappedValue.state.value))
+            \(debugCaseOutput(self.store.wrappedValue.withState { $0 }))
 
         This usually happens when there is a mismatch between the case being switched on and the \
         "CaseLet" view being rendered.

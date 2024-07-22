@@ -19,16 +19,21 @@ use these tools.
 ### Tree-based navigation
 
 - <doc:TreeBasedNavigation>
-- ``PresentationState``
+- ``Presents()``
 - ``PresentationAction``
-- ``Reducer/ifLet(_:action:destination:fileID:line:)``
-- ``DismissEffect``
+- ``Reducer/ifLet(_:action:destination:fileID:line:)-4k9by``
 
 ### Stack-based navigation
 
 - <doc:StackBasedNavigation>
 - ``StackState``
 - ``StackAction``
+- ``StackActionOf``
 - ``StackElementID``
-- ``Reducer/forEach(_:action:destination:fileID:line:)``
+- ``Reducer/forEach(_:action:destination:fileID:line:)-582rd``
+
+### Dismissal
+
 - ``DismissEffect``
+- ``Dependencies/DependencyValues/dismiss``
+- ``Dependencies/DependencyValues/isPresented``

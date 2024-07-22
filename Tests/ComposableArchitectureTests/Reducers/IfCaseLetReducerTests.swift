@@ -1,8 +1,9 @@
 import ComposableArchitecture
 import XCTest
 
-@MainActor
+@available(*, deprecated, message: "TODO: Update to use case pathable syntax with Swift 5.9")
 final class IfCaseLetReducerTests: BaseTCATestCase {
+  @MainActor
   func testChildAction() async {
     struct SomeError: Error, Equatable {}
 
@@ -10,7 +11,7 @@ final class IfCaseLetReducerTests: BaseTCATestCase {
       Reduce<Result<Int, SomeError>, Result<Int, SomeError>> { state, action in
         .none
       }
-      .ifCaseLet(/Result.success, action: /Result.success) {
+      .ifCaseLet(\.success, action: \.success) {
         Reduce { state, action in
           state = action
           return state < 0 ? .run { await $0(0) } : .none
@@ -30,45 +31,45 @@ final class IfCaseLetReducerTests: BaseTCATestCase {
     }
   }
 
-  #if DEBUG
-    func testNilChild() async {
-      struct SomeError: Error, Equatable {}
+  @MainActor
+  func testNilChild() async {
+    struct SomeError: Error, Equatable {}
 
-      let store = TestStore(initialState: Result.failure(SomeError())) {
-        EmptyReducer<Result<Int, SomeError>, Result<Int, SomeError>>()
-          .ifCaseLet(/Result.success, action: /Result.success) {}
-      }
-
-      XCTExpectFailure {
-        $0.compactDescription == """
-          An "ifCaseLet" at "\(#fileID):\(#line - 5)" received a child action when child state was \
-          set to a different case. …
-
-            Action:
-              Result.success(1)
-            State:
-              Result.failure(IfCaseLetReducerTests.SomeError())
-
-          This is generally considered an application logic error, and can happen for a few reasons:
-
-          • A parent reducer set "Result" to a different case before this reducer ran. This \
-          reducer must run before any other reducer sets child state to a different case. This \
-          ensures that child reducers can handle their actions while their state is still available.
-
-          • An in-flight effect emitted this action when child state was unavailable. While it may \
-          be perfectly reasonable to ignore this action, consider canceling the associated effect \
-          before child state changes to another case, especially if it is a long-living effect.
-
-          • This action was sent to the store while state was another case. Make sure that actions \
-          for this reducer can only be sent from a view store when state is set to the appropriate \
-          case. In SwiftUI applications, use "SwitchStore".
-          """
-      }
-
-      await store.send(.success(1))
+    let store = TestStore(initialState: Result.failure(SomeError())) {
+      EmptyReducer<Result<Int, SomeError>, Result<Int, SomeError>>()
+        .ifCaseLet(\.success, action: \.success) {}
     }
-  #endif
 
+    XCTExpectFailure {
+      $0.compactDescription == """
+        An "ifCaseLet" at "\(#fileID):\(#line - 5)" received a child action when child state was \
+        set to a different case. …
+
+          Action:
+            Result.success(1)
+          State:
+            Result.failure(IfCaseLetReducerTests.SomeError())
+
+        This is generally considered an application logic error, and can happen for a few reasons:
+
+        • A parent reducer set "Result" to a different case before this reducer ran. This \
+        reducer must run before any other reducer sets child state to a different case. This \
+        ensures that child reducers can handle their actions while their state is still available.
+
+        • An in-flight effect emitted this action when child state was unavailable. While it may \
+        be perfectly reasonable to ignore this action, consider canceling the associated effect \
+        before child state changes to another case, especially if it is a long-living effect.
+
+        • This action was sent to the store while state was another case. Make sure that actions \
+        for this reducer can only be sent from a view store when state is set to the appropriate \
+        case. In SwiftUI applications, use "SwitchStore".
+        """
+    }
+
+    await store.send(.success(1))
+  }
+
+  @MainActor
   func testEffectCancellation_Siblings() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -80,17 +81,19 @@ final class IfCaseLetReducerTests: BaseTCATestCase {
           case timerTick
         }
         @Dependency(\.continuousClock) var clock
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .timerButtonTapped:
-            return .run { send in
-              for await _ in self.clock.timer(interval: .seconds(1)) {
-                await send(.timerTick)
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .timerButtonTapped:
+              return .run { send in
+                for await _ in self.clock.timer(interval: .seconds(1)) {
+                  await send(.timerTick)
+                }
               }
+            case .timerTick:
+              state.count += 1
+              return .none
             }
-          case .timerTick:
-            state.count += 1
-            return .none
           }
         }
       }
@@ -147,6 +150,7 @@ final class IfCaseLetReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testIdentifiableChild() async {
     struct Feature: Reducer {
       enum State: Equatable {
@@ -181,17 +185,18 @@ final class IfCaseLetReducerTests: BaseTCATestCase {
         case response(Int)
       }
       @Dependency(\.mainQueue) var mainQueue
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-
-        case .tap:
-          return .run { [id = state.id] send in
-            try await mainQueue.sleep(for: .seconds(0))
-            await send(.response(id))
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .tap:
+            return .run { [id = state.id] send in
+              try await mainQueue.sleep(for: .seconds(0))
+              await send(.response(id))
+            }
+          case let .response(value):
+            state.value = value
+            return .none
           }
-        case let .response(value):
-          state.value = value
-          return .none
         }
       }
     }

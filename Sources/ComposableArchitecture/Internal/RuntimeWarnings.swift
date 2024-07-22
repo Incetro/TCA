@@ -1,7 +1,12 @@
 import Foundation
 
 extension Notification.Name {
+  @_documentation(visibility:private)
+  @available(*, deprecated, renamed: "_runtimeWarning")
   public static let runtimeWarning = Self("ComposableArchitecture.runtimeWarning")
+
+  /// A notification that is posted when a runtime warning is emitted.
+  public static let _runtimeWarning = Self("ComposableArchitecture.runtimeWarning")
 }
 
 @_transparent
@@ -14,7 +19,7 @@ func runtimeWarn(
   #if DEBUG
     let message = message()
     NotificationCenter.default.post(
-      name: .runtimeWarning,
+      name: ._runtimeWarning,
       object: nil,
       userInfo: ["message": message]
     )
@@ -33,6 +38,10 @@ func runtimeWarn(
       #else
         fputs("\(formatter.string(from: Date())) [\(category)] \(message)\n", stderr)
       #endif
+    }
+  #else
+    if _XCTIsTesting {
+      XCTFail(message())
     }
   #endif
 }

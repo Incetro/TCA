@@ -1,8 +1,8 @@
 import ComposableArchitecture
 import XCTest
 
-@MainActor
 final class ForEachReducerTests: BaseTCATestCase {
+  @MainActor
   func testElementAction() async {
     let store = TestStore(
       initialState: Elements.State(
@@ -16,17 +16,18 @@ final class ForEachReducerTests: BaseTCATestCase {
       Elements()
     }
 
-    await store.send(.row(id: 1, action: "Blob Esq.")) {
+    await store.send(\.rows[id:1], "Blob Esq.") {
       $0.rows[id: 1]?.value = "Blob Esq."
     }
-    await store.send(.row(id: 2, action: "")) {
+    await store.send(\.rows[id:2], "") {
       $0.rows[id: 2]?.value = ""
     }
-    await store.receive(.row(id: 2, action: "Empty")) {
+    await store.receive(\.rows[id:2]) {
       $0.rows[id: 2]?.value = "Empty"
     }
   }
 
+  @MainActor
   func testNonElementAction() async {
     let store = TestStore(initialState: Elements.State()) {
       Elements()
@@ -35,40 +36,40 @@ final class ForEachReducerTests: BaseTCATestCase {
     await store.send(.buttonTapped)
   }
 
-  #if DEBUG
-    func testMissingElement() async {
-      let store = TestStore(initialState: Elements.State()) {
-        EmptyReducer<Elements.State, Elements.Action>()
-          .forEach(\.rows, action: /Elements.Action.row) {}
-      }
-
-      XCTExpectFailure {
-        $0.compactDescription == """
-          A "forEach" at "\(#fileID):\(#line - 5)" received an action for a missing element. …
-
-            Action:
-              Elements.Action.row(id:, action:)
-
-          This is generally considered an application logic error, and can happen for a few reasons:
-
-          • A parent reducer removed an element with this ID before this reducer ran. This reducer \
-          must run before any other reducer removes an element, which ensures that element reducers \
-          can handle their actions while their state is still available.
-
-          • An in-flight effect emitted this action when state contained no element at this ID. \
-          While it may be perfectly reasonable to ignore this action, consider canceling the \
-          associated effect before an element is removed, especially if it is a long-living effect.
-
-          • This action was sent to the store while its state contained no element at this ID. To \
-          fix this make sure that actions for this reducer can only be sent from a view store when \
-          its state contains an element at this id. In SwiftUI applications, use "ForEachStore".
-          """
-      }
-
-      await store.send(.row(id: 1, action: "Blob Esq."))
+  @MainActor
+  func testMissingElement() async {
+    let store = TestStore(initialState: Elements.State()) {
+      EmptyReducer<Elements.State, Elements.Action>()
+        .forEach(\.rows, action: \.rows) {}
     }
-  #endif
 
+    XCTExpectFailure {
+      $0.compactDescription == """
+        A "forEach" at "\(#fileID):\(#line - 5)" received an action for a missing element. …
+
+          Action:
+            Elements.Action.rows(.element(id:, action:))
+
+        This is generally considered an application logic error, and can happen for a few reasons:
+
+        • A parent reducer removed an element with this ID before this reducer ran. This reducer \
+        must run before any other reducer removes an element, which ensures that element \
+        reducers can handle their actions while their state is still available.
+
+        • An in-flight effect emitted this action when state contained no element at this ID. \
+        While it may be perfectly reasonable to ignore this action, consider canceling the \
+        associated effect before an element is removed, especially if it is a long-living effect.
+
+        • This action was sent to the store while its state contained no element at this ID. To \
+        fix this make sure that actions for this reducer can only be sent from a view store when \
+        its state contains an element at this id. In SwiftUI applications, use "ForEachStore".
+        """
+    }
+
+    await store.send(\.rows[id:1], "Blob Esq.")
+  }
+
+  @MainActor
   func testAutomaticEffectCancellation() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Timer: Reducer {
@@ -81,17 +82,19 @@ final class ForEachReducerTests: BaseTCATestCase {
           case tick
         }
         @Dependency(\.continuousClock) var clock
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .startButtonTapped:
-            return .run { send in
-              for await _ in self.clock.timer(interval: .seconds(1)) {
-                await send(.tick)
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .startButtonTapped:
+              return .run { send in
+                for await _ in self.clock.timer(interval: .seconds(1)) {
+                  await send(.tick)
+                }
               }
+            case .tick:
+              state.elapsed += 1
+              return .none
             }
-          case .tick:
-            state.elapsed += 1
-            return .none
           }
         }
       }
@@ -219,7 +222,8 @@ final class ForEachReducerTests: BaseTCATestCase {
   }
 }
 
-struct Elements: Reducer {
+@Reducer
+struct Elements {
   struct State: Equatable {
     struct Row: Equatable, Identifiable {
       var id: Int
@@ -229,13 +233,13 @@ struct Elements: Reducer {
   }
   enum Action: Equatable {
     case buttonTapped
-    case row(id: Int, action: String)
+    case rows(IdentifiedAction<Int, String>)
   }
   var body: some ReducerOf<Self> {
     Reduce { state, action in
       .none
     }
-    .forEach(\.rows, action: /Action.row) {
+    .forEach(\.rows, action: \.rows) {
       Reduce { state, action in
         state.value = action
         return action.isEmpty

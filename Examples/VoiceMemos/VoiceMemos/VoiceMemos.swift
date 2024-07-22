@@ -2,11 +2,13 @@ import AVFoundation
 import ComposableArchitecture
 import SwiftUI
 
-struct VoiceMemos: Reducer {
+@Reducer
+struct VoiceMemos {
+  @ObservableState
   struct State: Equatable {
-    @PresentationState var alert: AlertState<AlertAction>?
+    @Presents var alert: AlertState<Action.Alert>?
     var audioRecorderPermission = RecorderPermission.undetermined
-    @PresentationState var recordingMemo: RecordingMemo.State?
+    @Presents var recordingMemo: RecordingMemo.State?
     var voiceMemos: IdentifiedArrayOf<VoiceMemo.State> = []
 
     enum RecorderPermission {
@@ -16,17 +18,17 @@ struct VoiceMemos: Reducer {
     }
   }
 
-  enum Action: Equatable {
-    case alert(PresentationAction<AlertAction>)
+  enum Action: Sendable {
+    case alert(PresentationAction<Alert>)
     case onDelete(IndexSet)
     case openSettingsButtonTapped
     case recordButtonTapped
     case recordPermissionResponse(Bool)
     case recordingMemo(PresentationAction<RecordingMemo.Action>)
-    case voiceMemos(id: VoiceMemo.State.ID, action: VoiceMemo.Action)
-  }
+    case voiceMemos(IdentifiedActionOf<VoiceMemo>)
 
-  enum AlertAction: Equatable {}
+    enum Alert: Equatable {}
+  }
 
   @Dependency(\.audioRecorder.requestRecordPermission) var requestRecordPermission
   @Dependency(\.date) var date
@@ -95,7 +97,7 @@ struct VoiceMemos: Reducer {
           return .none
         }
 
-      case let .voiceMemos(id: id, action: .delegate(delegateAction)):
+      case let .voiceMemos(.element(id: id, action: .delegate(delegateAction))):
         switch delegateAction {
         case .playbackFailed:
           state.alert = AlertState { TextState("Voice memo playback failed.") }
@@ -111,11 +113,11 @@ struct VoiceMemos: Reducer {
         return .none
       }
     }
-    .ifLet(\.$alert, action: /Action.alert)
-    .ifLet(\.$recordingMemo, action: /Action.recordingMemo) {
+    .ifLet(\.$alert, action: \.alert)
+    .ifLet(\.$recordingMemo, action: \.recordingMemo) {
       RecordingMemo()
     }
-    .forEach(\.voiceMemos, action: /Action.voiceMemos) {
+    .forEach(\.voiceMemos, action: \.voiceMemos) {
       VoiceMemo()
     }
   }
@@ -131,39 +133,37 @@ struct VoiceMemos: Reducer {
 }
 
 struct VoiceMemosView: View {
-  let store: StoreOf<VoiceMemos>
+  @Bindable var store: StoreOf<VoiceMemos>
 
   var body: some View {
-    WithViewStore(self.store, observe: { $0 }) { viewStore in
-      NavigationStack {
-        VStack {
-          List {
-            ForEachStore(
-              self.store.scope(state: \.voiceMemos, action: { .voiceMemos(id: $0, action: $1) })
-            ) {
-              VoiceMemoView(store: $0)
-            }
-            .onDelete { viewStore.send(.onDelete($0)) }
+    NavigationStack {
+      VStack {
+        List {
+          ForEach(store.scope(state: \.voiceMemos, action: \.voiceMemos)) { store in
+            VoiceMemoView(store: store)
           }
-
-          IfLetStore(
-            self.store.scope(state: \.$recordingMemo, action: { .recordingMemo($0) })
-          ) { store in
-            RecordingMemoView(store: store)
-          } else: {
-            RecordButton(permission: viewStore.audioRecorderPermission) {
-              viewStore.send(.recordButtonTapped, animation: .spring())
-            } settingsAction: {
-              viewStore.send(.openSettingsButtonTapped)
-            }
-          }
-          .padding()
-          .frame(maxWidth: .infinity)
-          .background(Color.init(white: 0.95))
+          .onDelete { store.send(.onDelete($0)) }
         }
-        .alert(store: self.store.scope(state: \.$alert, action: { .alert($0) }))
-        .navigationTitle("Voice memos")
+
+        Group {
+          if let store = store.scope(
+            state: \.recordingMemo, action: \.recordingMemo.presented
+          ) {
+            RecordingMemoView(store: store)
+          } else {
+            RecordButton(permission: store.audioRecorderPermission) {
+              store.send(.recordButtonTapped, animation: .spring())
+            } settingsAction: {
+              store.send(.openSettingsButtonTapped)
+            }
+          }
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(Color.init(white: 0.95))
       }
+      .alert($store.scope(state: \.alert, action: \.alert))
+      .navigationTitle("Voice memos")
     }
   }
 }
@@ -180,20 +180,20 @@ struct RecordButton: View {
           .foregroundColor(Color(.label))
           .frame(width: 74, height: 74)
 
-        Button(action: self.action) {
+        Button(action: action) {
           RoundedRectangle(cornerRadius: 35)
             .foregroundColor(Color(.systemRed))
             .padding(2)
         }
         .frame(width: 70, height: 70)
       }
-      .opacity(self.permission == .denied ? 0.1 : 1)
+      .opacity(permission == .denied ? 0.1 : 1)
 
-      if self.permission == .denied {
+      if permission == .denied {
         VStack(spacing: 10) {
           Text("Recording requires microphone access.")
             .multilineTextAlignment(.center)
-          Button("Open Settings", action: self.settingsAction)
+          Button("Open Settings", action: settingsAction)
         }
         .frame(maxWidth: .infinity, maxHeight: 74)
       }
@@ -201,31 +201,29 @@ struct RecordButton: View {
   }
 }
 
-struct VoiceMemos_Previews: PreviewProvider {
-  static var previews: some View {
-    VoiceMemosView(
-      store: Store(
-        initialState: VoiceMemos.State(
-          voiceMemos: [
-            VoiceMemo.State(
-              date: Date(),
-              duration: 5,
-              mode: .notPlaying,
-              title: "Functions",
-              url: URL(string: "https://www.pointfree.co/functions")!
-            ),
-            VoiceMemo.State(
-              date: Date(),
-              duration: 5,
-              mode: .notPlaying,
-              title: "",
-              url: URL(string: "https://www.pointfree.co/untitled")!
-            ),
-          ]
-        )
-      ) {
-        VoiceMemos()
-      }
-    )
-  }
+#Preview {
+  VoiceMemosView(
+    store: Store(
+      initialState: VoiceMemos.State(
+        voiceMemos: [
+          VoiceMemo.State(
+            date: Date(),
+            duration: 5,
+            mode: .notPlaying,
+            title: "Functions",
+            url: URL(string: "https://www.pointfree.co/functions")!
+          ),
+          VoiceMemo.State(
+            date: Date(),
+            duration: 5,
+            mode: .notPlaying,
+            title: "",
+            url: URL(string: "https://www.pointfree.co/untitled")!
+          ),
+        ]
+      )
+    ) {
+      VoiceMemos()
+    }
+  )
 }

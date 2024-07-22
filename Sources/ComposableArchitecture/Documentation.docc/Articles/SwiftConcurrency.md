@@ -23,21 +23,25 @@ Reducers are executed with a mutable, `inout` state variable, and such variables
 from within `@Sendable` closures:
 
 ```swift
-struct Feature: Reducer {
+@Reducer
+struct Feature {
+  @ObservableState
   struct State { /* ... */ }
   enum Action { /* ... */ }
 
-  func reduce(into state: inout State, action: Action) -> Effect<Action> {
-    switch action {
-    case .buttonTapped:
-      return .run { send in
-        try await Task.sleep(for: .seconds(1))
-        await send(.delayed(state.count))
-        // 🛑 Mutable capture of 'inout' parameter 'state' is
-        //    not allowed in concurrently-executing code
-      }
+  var body: some Reducer<State, Action> {
+    Reduce { state, action in
+      switch action {
+      case .buttonTapped:
+        return .run { send in
+          try await Task.sleep(for: .seconds(1))
+          await send(.delayed(state.count))
+          // 🛑 Mutable capture of 'inout' parameter 'state' is
+          //    not allowed in concurrently-executing code
+        }
 
-      // ...
+        // ...
+      }
     }
   }
 }
@@ -59,7 +63,7 @@ variable name for the capture:
 ```swift
 return .run { [count = state.count] send in
   try await Task.sleep(for: .seconds(1))
-  return .delayed(count)  // ✅
+  await send(.delayed(count))  // ✅
 }
 ```
 

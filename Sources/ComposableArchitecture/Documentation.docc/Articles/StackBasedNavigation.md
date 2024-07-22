@@ -11,6 +11,7 @@ flat collection of data, handing it off to SwiftUI, and letting it take care of 
 It also allows for complex and recursive navigation paths in your application.
 
   * [Basics](#Basics)
+  * [Pushing features onto the stack](#Pushing-features-onto-the-stack)
   * [Integration](#Integration)
   * [Dismissal](#Dismissal)
   * [Testing](#Testing)
@@ -19,120 +20,109 @@ It also allows for complex and recursive navigation paths in your application.
 ## Basics
 
 The tools for this style of navigation include ``StackState``, ``StackAction`` and the
-``Reducer/forEach(_:action:destination:fileID:line:)`` operator, as well as a new 
-``NavigationStackStore`` view that behaves like `NavigationStack` but is tuned specifically for the 
-Composable Architecture.
+``Reducer/forEach(_:action:destination:fileID:line:)-582rd`` operator, as well as a new 
+initializer ``SwiftUI/NavigationStack/init(path:root:destination:fileID:line:)`` on 
+`NavigationStack` that behaves like the normal initializer, but is tuned specifically for 
+the Composable Architecture.
 
 The process of integrating features into a navigation stack largely consists of 2 steps: 
-integrating the features' domains together, and constructing a ``NavigationStackStore`` for 
-describing all the views in the stack. One typically starts by integrating the features' domains 
-together. This consists of defining a new reducer, typically called `Path`, that holds the domains
-of all the features that can be pushed onto the stack:
+integrating the features' domains together, and constructing a `NavigationStack` for a 
+store describing all the views in the stack. One typically starts by integrating the features' 
+domains together. This consists of defining a new reducer, typically called `Path`, that holds the 
+domains of all the features that can be pushed onto the stack:
 
 ```swift
-struct RootFeature: Reducer {
+@Reducer
+struct RootFeature {
   // ...
 
-  struct Path: Reducer {
-    enum State {
-      case addItem(AddFeature.State)
-      case detailItem(DetailFeature.State)
-      case editItem(EditFeature.State)
-    }
-    enum Action {
-      case addItem(AddFeature.Action)
-      case detailItem(DetailFeature.Action)
-      case editItem(EditFeature.Action)
-    }
-    var body: some ReducerOf<Self> {
-      Scope(state: /State.addItem, action: /Action.addItem) { 
-        AddFeature()
-      }
-      Scope(state: /State.editItem, action: /Action.editItem) { 
-        EditFeature()
-      }
-      Scope(state: /State.detailItem, action: /Action.detailItem) { 
-        DetailFeature()
-      }
-    }
+  @Reducer
+  enum Path {
+    case addItem(AddFeature)
+    case detailItem(DetailFeature)
+    case editItem(EditFeature)
   }
 }
 ```
 
-> Note: The `Path` reducer is identical to the `Destination` reducer that one creates for tree-based 
-> navigation when using enums. See <doc:TreeBasedNavigation#Enum-state> for more information.
+> Note: The `Path` reducer is identical to the `Destination` reducer that one creates for 
+> tree-based navigation when using enums. See <doc:TreeBasedNavigation#Enum-state> for more
+> information.
 
 Once the `Path` reducer is defined we can then hold onto ``StackState`` and ``StackAction`` in the 
 feature that manages the navigation stack:
 
 ```swift
-struct RootFeature: Reducer {
+@Reducer
+struct RootFeature {
+  @ObservableState
   struct State {
     var path = StackState<Path.State>()
     // ...
   }
   enum Action {
-    case path(StackAction<Path.State, Path.Action>)
+    case path(StackActionOf<Path>)
     // ...
   }
 }
 ```
 
-> Note: ``StackAction`` is generic over both state and action of the `Path` domain. This is 
-> different from ``PresentationAction``, which only has a single generic.
+> Tip: ``StackAction`` is generic over both state and action of the `Path` domain, and so you can
+> use the ``StackActionOf`` typealias to simplify the syntax a bit. This is different from
+> ``PresentationAction``, which only has a single generic of `Action`.
 
-And then we must make use of the ``Reducer/forEach(_:action:destination:fileID:line:)``
-method to integrate the domains of all the features that can be navigated to with the domain of the
-parent feature:
+And then we must make use of the ``Reducer/forEach(_:action:)`` method to integrate the domains of
+all the features that can be navigated to with the domain of the parent feature:
 
 ```swift
-struct RootFeature: Reducer {
+@Reducer
+struct RootFeature {
   // ...
 
   var body: some ReducerOf<Self> {
     Reduce { state, action in 
       // Core logic for root feature
     }
-    .forEach(\.path, action: /Action.path) { 
-      Path()
-    }
+    .forEach(\.path, action: \.path)
   }
 }
 ```
+
+> Note: You do not need to specify `Path()` in a trailing closure of `forEach` because it can be
+> automatically inferred from `@Reducer enum Path`.
 
 That completes the steps to integrate the child and parent features together for a navigation stack.
 
-Next we must integrate the child and parent views together. This is done by constructing a special
-version of SwiftUI's `NavigationStack` view that comes with this library, called 
-``NavigationStackStore``. This view takes 3 arguments: a store focused in on ``StackState``
-and ``StackAction`` in your domain, a trailing view builder for the root view of the stack, and
-another trailing view builder for all of the views that can be pushed onto the stack:
+Next we must integrate the child and parent views together. This is done by a 
+`NavigationStack` using a special initializer that comes with this library, called
+``SwiftUI/NavigationStack/init(path:root:destination:fileID:line:)``. This initializer takes 3 
+arguments: a binding of a store focused in on ``StackState`` and ``StackAction`` in your domain, a 
+trailing view builder for the root view of the stack, and another trailing view builder for all of 
+the views that can be pushed onto the stack:
 
 ```swift
-NavigationStackStore(
-  // Store focused on StackState and StackAction
+NavigationStack(
+  path: // Store focused on StackState and StackAction
 ) {
   // Root view of the navigation stack
-} destination: { state in 
-  switch state {
-    // A view for each case of the Path.State enum
-  }
+} destination: { store in
+  // A view for each case of the Path.State enum
 }
 ```
 
-To fill in the first argument you only need to scope your store to the `path` state and `path` 
-action you already hold in the root feature:
+To fill in the first argument you only need to scope a binding of your store to the `path` state and
+`path` action you already hold in the root feature:
 
 ```swift
 struct RootView: View {
-  let store: StoreOf<RootFeature>
+  @Bindable var store: StoreOf<RootFeature>
 
   var body: some View {
-    NavigationStackStore(
-      self.store.scope(state: \.path, action: { .path($0) })
+    NavigationStack(
+      path: $store.scope(state: \.path, action: \.path)
     ) {
       // Root view of the navigation stack
-    } destination: { state in
+    } destination: { store in
       // A view for each case of the Path.State enum
     }
   }
@@ -142,15 +132,16 @@ struct RootView: View {
 The root view can be anything you want, and would typically have some `NavigationLink`s or other
 buttons that push new data onto the ``StackState`` held in your domain.
 
-And the last trailing closure is provided a single piece of the `Path.State` enum so that you can 
-switch on it:
+And the last trailing closure is provided a store of `Path` domain, and you can use the 
+``Store/case`` computed property to destructure each case of the `Path` to obtain a store focused
+on just that case:
 
 ```swift
-} destination: { state in
-  switch state {
-  case .addItem:
-  case .detailItem:
-  case .editItem:
+} destination: { store in
+  switch store.case {
+  case .addItem(let store):
+  case .detailItem(let store):
+  case .editItem(let store):
   }
 }
 ```
@@ -159,30 +150,17 @@ This will give you compile-time guarantees that you have handled each case of th
 which can be nice for when you add new types of destinations to the stack.
 
 In each of these cases you can return any kind of view that you want, but ultimately you want to
-make use of the library's ``CaseLet`` view in order to scope down to a specific case of the 
-`Path.State` enum:
+scope the store down to a specific case of the `Path.State` enum:
 
 ```swift
-} destination: { state in
-  switch state {
-  case .addItem:
-    CaseLet(
-      /RootFeature.Path.State.addItem,
-      action: RootFeature.Path.Action.addItem,
-      then: AddView.init(store:)
-    )
-  case .detailItem:
-    CaseLet(
-      /RootFeature.Path.State.detailItem,
-      action: RootFeature.Path.Action.detailItem,
-      then: DetailView.init(store:)
-    )
-  case .editItem:
-    CaseLet(
-      /RootFeature.Path.State.editItem,
-      action: RootFeature.Path.Action.editItem,
-      then: EditView.init(store:)
-    )
+} destination: { store in
+  switch store.case {
+  case .addItem(let store):
+    AddView(store: store)
+  case .detailItem(let store):
+    DetailView(store: store)
+  case .editItem(let store):
+    EditView(store: store)
   }
 }
 ```
@@ -192,6 +170,57 @@ and done so with concisely modeled domains. Once those steps are taken you can e
 additional features to the stack by adding a new case to the `Path` reducer state and action enums, 
 and you get complete introspection into what is happening in each child feature from the parent. 
 Continue reading into <doc:StackBasedNavigation#Integration> for more information on that.
+
+## Pushing features onto the stack
+
+There are two primary ways to push features onto the stack once you have their domains integrated
+and `NavigationStack` in the view, as described above. The simplest way is to use the 
+``SwiftUI/NavigationLink/init(state:label:fileID:line:)`` initializer on `NavigationLink`, which
+requires you to specify the state of the feature you want to push onto the stack. You must specify
+the full state, going all the way back to the `Path` reducer's state:
+
+```swift
+Form {
+  NavigationLink(
+    state: RootFeature.Path.State.detail(DetailFeature.State())
+  ) {
+    Text("Detail")
+  }
+}
+```
+
+When the link is tapped a ``StackAction/push(id:state:)`` action will be sent, causing the `path`
+collection to be mutated and appending the `.detail` state to the stack.
+
+This is by far the simplest way to navigate to a screen, but it also has its drawbacks. In 
+particular, it makes modularity difficult since the view that holds onto the `NavigationLink` must
+have access to the `Path.State` type, which means it needs to build all of the `Path` reducer, 
+including _every_ feature that can be navigated to.
+
+This hurts modularity because it is no longer possible to build each feature that can be presented
+in the stack individually, in full isolation. You must build them all together. Technically you can
+move all features' `State` types (and only the `State` types) to a separate module, and then
+features can depend on only that module without needing to build every feature's reducer.
+
+Another alternative is to forgo `NavigationLink` entirely and just use `Button` that sends an action
+in the child feature's domain:
+
+```swift
+Form {
+  Button("Detail") {
+    store.send(.detailButtonTapped)
+  }
+}
+```
+
+Then the root feature can listen for that action and append to the `path` with new state in order
+to drive navigation:
+
+```swift
+case .path(.element(id: _, action: .list(.detailButtonTapped))):
+  state.path.append(.detail(DetailFeature.State()))
+  return .none
+```
 
 ## Integration
 
@@ -213,7 +242,7 @@ additional logic, such as popping the "edit" feature and saving the edited item 
 
 ```swift
 case let .path(.element(id: id, action: .editItem(.saveButtonTapped))):
-  guard case let .editItem(editItemState) = state.path[id: id]
+  guard let editItemState = state.path[id: id]?.editItem
   else { return .none }
 
   state.path.pop(from: id)
@@ -256,7 +285,7 @@ struct ChildView: View {
 }
 ```
 
-When `self.dismiss()` is invoked, SwiftUI finds the closet parent view that is presented in the
+When `self.dismiss()` is invoked, SwiftUI finds the closest parent view that is presented in the
 navigation stack, and removes that state from the collection powering the stack. This can be 
 incredibly useful, but it is also relegated to the view layer. It is not possible to use 
 `dismiss` elsewhere, like in an observable object, which would allow you to have nuanced logic
@@ -267,19 +296,23 @@ where the rest of your feature's logic and behavior resides. It is accessed via 
 dependency management system (see <doc:DependencyManagement>) using ``DismissEffect``:
 
 ```swift
-struct Feature: Reducer {
+@Reducer
+struct Feature {
+  @ObservableState
   struct State { /* ... */ }
   enum Action { 
     case closeButtonTapped
     // ...
   }
   @Dependency(\.dismiss) var dismiss
-  func reduce(into state: inout State, action: Action) -> Effect<Action> {
-    switch action {
-    case .closeButtonTapped:
-      return .run { _ in await self.dismiss() }
-    // ...
-    } 
+  var body: some Reducer<State, Action> {
+    Reduce { state, action in
+      switch action {
+      case .closeButtonTapped:
+        return .run { _ in await self.dismiss() }
+      // ...
+      }
+    }
   }
 }
 ```
@@ -322,28 +355,32 @@ As an example, consider the following simple counter feature that wants to dismi
 count is greater than or equal to 5:
 
 ```swift
-struct CounterFeature: Reducer {
+@Reducer
+struct CounterFeature {
+  @ObservableState
   struct State: Equatable {
     var count = 0
   }
-  enum Action: Equatable {
+  enum Action {
     case decrementButtonTapped
     case incrementButtonTapped
   }
 
   @Dependency(\.dismiss) var dismiss
 
-  func reduce(into state: inout State, action: Action) -> Effect<Action> {
-    switch action {
-    case .decrementButtonTapped:
-      state.count -= 1
-      return .none
+  var body: some Reducer<State, Action> {
+    Reduce { state, action in
+      switch action {
+      case .decrementButtonTapped:
+        state.count -= 1
+        return .none
 
-    case .incrementButtonTapped:
-      state.count += 1
-      return state.count >= 5
-        ? .run { _ in await self.dismiss() }
-        : .none
+      case .incrementButtonTapped:
+        state.count += 1
+        return state.count >= 5
+          ? .run { _ in await self.dismiss() }
+          : .none
+      }
     }
   }
 }
@@ -352,19 +389,22 @@ struct CounterFeature: Reducer {
 And then let's embed that feature into a parent feature:
 
 ```swift
-struct Feature: Reducer {
+@Reducer
+struct Feature {
+  @ObservableState
   struct State: Equatable {
     var path = StackState<Path.State>()
   }
-  enum Action: Equatable {
-    case path(StackAction<Path.State, Path.Action>)
+  enum Action {
+    case path(StackActionOf<Path>)
   }
 
-  struct Path: Reducer {
+  @Reducer  
+  struct Path {
     enum State: Equatable { case counter(Counter.State) }
-    enum Action: Equatable { case counter(Counter.Action) }
+    enum Action { case counter(Counter.Action) }
     var body: some ReducerOf<Self> {
-      Scope(state: /State.counter, action: /Action.counter) { Counter() }
+      Scope(state: \.counter, action: \.counter) { Counter() }
     }
   }
 
@@ -372,7 +412,7 @@ struct Feature: Reducer {
     Reduce { state, action in
       // Logic and behavior for core feature.
     }
-    .forEach(\.path, action: /Action.path) { Path() }
+    .forEach(\.path, action: \.path) { Path() }
   }
 }
 ```
@@ -400,7 +440,7 @@ stack in order to confirm that the count goes up by one, but in order to do so w
 an ID:
 
 ```swift
-await store.send(.path(.element(id: ???, action: .incrementButtonTapped))) {
+await store.send(\.path[id: ???].counter.incrementButtonTapped) {
   // ...
 }
 ```
@@ -414,7 +454,7 @@ This means that when the ``TestStore`` were constructed with a single element al
 that it was given an ID of 0, and so that is the ID we can use when sending an action:
 
 ```swift
-await store.send(.path(.element(id: 0, action: .incrementButtonTapped))) {
+await store.send(\.path[id: 0].counter.incrementButtonTapped) {
   // ...
 }
 ```
@@ -428,8 +468,8 @@ The library provides two different tools to perform all of these steps in a sing
 use the `XCTModify` helper:
 
 ```swift
-await store.send(.path(.element(id: 0, action: .incrementButtonTapped))) {
-  XCTModify(&$0.path[id: 0], case: /Feature.Path.State.counter) {
+await store.send(\.path[id: 0].counter.incrementButtonTapped) {
+  XCTModify(&$0.path[id: 0], case: \.counter) {
     $0.count = 4
   }
 }
@@ -442,23 +482,23 @@ above we are subscripting into ID 0, isolating the `.counter` case of the `Path.
 and mutating the `count` to be 4 since it incremented by one. Further, if the case of `$0.path[id: 0]`
 didn't match the case path, then a test failure would be emitted.
 
-Another option is to use ``StackState/subscript(id:case:)`` to simultaneously subscript into an 
+Another option is to use ``StackState/subscript(id:case:)-7gczr`` to simultaneously subscript into an 
 ID on the stack _and_ a case of the path enum:
 
 ```swift
-await store.send(.path(.element(id: 0, action: .incrementButtonTapped))) {
-  $0.path[id: 0, case: /Feature.Path.State.counter]?.count = 4
+await store.send(\.path[id: 0].counter.incrementButtonTapped) {
+  $0.path[id: 0, case: \.counter]?.count = 4
 }
 ```
 
 The `XCTModify` style is best when you have many things you need to modify on the state, and the
-``StackState/subscript(id:case:)`` style is best when you have simple mutations.
+``StackState/subscript(id:case:)-7gczr`` style is best when you have simple mutations.
 
 Continuing with the test, we can send it one more time to see that the count goes up to 5:
 
 ```swift
-await store.send(.path(.element(id: 0, action: .incrementButtonTapped))) {
-  XCTModify(&$0.path[id: 0], case: /Feature.Path.State.counter) {
+await store.send(\.path[id: 0].counter.incrementButtonTapped) {
+  XCTModify(&$0.path[id: 0], case: \.counter) {
     $0.count = 5
   }
 }
@@ -466,12 +506,24 @@ await store.send(.path(.element(id: 0, action: .incrementButtonTapped))) {
 
 And then we finally expect that the child dismisses itself, which manifests itself as the 
 ``StackAction/popFrom(id:)`` action being sent to pop the counter feature off the stack, which we 
-can assert using the ``TestStore/receive(_:timeout:assert:file:line:)-5awso`` method on 
+can assert using the ``TestStore/receive(_:timeout:assert:file:line:)-6325h`` method on
 ``TestStore``:
 
 ```swift
-await store.receive(.path(.popFrom(id: 0))) {
+await store.receive(\.path.popFrom) {
   $0.path[id: 0] = nil
+}
+```
+
+If you need to assert that a specific child action is received, you can construct a case key path 
+for a specific child element action by subscripting on the `\.path` case with the element ID. 
+
+For example, if the child feature performed an effect that sent an `.response` action, you 
+can test that it is received:
+
+```swift
+await store.receive(\.path[id: 0].counter.response) {
+  // ...
 }
 ```
 
@@ -504,9 +556,9 @@ func testDismissal() {
   }
   store.exhaustivity = .off
 
-  await store.send(.path(.element(id: 0, action: .incrementButtonTapped))) 
-  await store.send(.path(.element(id: 0, action: .incrementButtonTapped))) 
-  await store.receive(.path(.popFrom(id: 0)))
+  await store.send(\.path[id: 0].counter.incrementButtonTapped)
+  await store.send(\.path[id: 0].counter.incrementButtonTapped)
+  await store.receive(\.path.popFrom)
 }
 ```
 

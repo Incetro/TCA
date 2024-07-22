@@ -3,8 +3,8 @@
 
   @testable import ComposableArchitecture
 
-  @MainActor
   final class BindingLocalTests: BaseTCATestCase {
+    @MainActor
     public func testBindingLocalIsActive() {
       XCTAssertFalse(BindingLocal.isActive)
 
@@ -17,12 +17,14 @@
           case textChanged(String)
         }
 
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case let .textChanged(text):
-            state.text = text
-            return .none
-          }
+        var body: some Reducer<State, Action> {
+          Reduce(internal: { state, action in
+            switch action {
+            case let .textChanged(text):
+              state.text = text
+              return .none
+            }
+          })
         }
       }
 
