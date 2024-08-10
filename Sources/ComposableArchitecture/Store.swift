@@ -186,7 +186,7 @@ public final class Store<State, Action> {
     self.toState = .keyPath(\State.self)
     self.fromAction = { $0 }
   }
-    
+
   /// Initializes a store from an initial state and a reducer.
   ///
   /// - Parameters:
@@ -197,9 +197,9 @@ public final class Store<State, Action> {
     reducer: R
   ) where R.State == State, R.Action == Action {
     self.init(
-        initialState: initialState,
-        reducer: reducer,
-        mainThreadChecksEnabled: true
+      initialState: initialState,
+      reducer: reducer,
+      mainThreadChecksEnabled: true
     )
   }
 
