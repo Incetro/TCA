@@ -4,14 +4,15 @@ import Combine
 /// A property wrapper for state that can be presented.
 ///
 /// Use this property wrapper for modeling a feature's domain that needs to present a child feature
-/// using ``Reducer/ifLet(_:action:destination:fileID:line:)``.
+/// using ``Reducer/ifLet(_:action:destination:fileID:line:)-4k9by``.
 ///
 /// For example, if you have a `ChildFeature` reducer that encapsulates the logic and behavior for a
 /// feature, then any feature that wants to present that feature will hold onto `ChildFeature.State`
 /// like so:
 ///
 /// ```swift
-/// struct ParentFeature: Reducer {
+/// @Reducer
+/// struct ParentFeature {
 ///   struct State {
 ///     @PresentationState var child: ChildFeature.State?
 ///      // ...
@@ -22,18 +23,19 @@ import Combine
 ///
 /// For the most part your feature's logic can deal with `child` as a plain optional value, but
 /// there are times you need to know that you are secretly dealing with `PresentationState`. For
-/// example, when using the ``Reducer/ifLet(_:action:destination:fileID:line:)`` reducer operator to
+/// example, when using the ``Reducer/ifLet(_:action:destination:fileID:line:)-4k9by`` reducer operator to
 /// integrate the parent and child features together, you will construct a key path to the projected
 /// value `\.$child`:
 ///
 /// ```swift
-/// struct ParentFeature: Reducer {
+/// @Reducer
+/// struct ParentFeature {
 ///   // ...
 ///   var body: some ReducerOf<Self> {
 ///     Reduce { state, action in
 ///       // Core logic for parent feature
 ///     }
-///     .ifLet(\.$child, action: /Action.child) {
+///     .ifLet(\.$child, action: \.child) {
 ///       ChildFeature()
 ///     }
 ///   }
@@ -43,6 +45,7 @@ import Combine
 /// See the dedicated article on <doc:Navigation> for more information on the library's navigation
 /// tools, and in particular see <doc:TreeBasedNavigation> for information on modeling navigation
 /// using optionals and enums.
+@dynamicMemberLookup
 @propertyWrapper
 public struct PresentationState<State> {
   private class Storage: @unchecked Sendable {
@@ -60,25 +63,95 @@ public struct PresentationState<State> {
   }
 
   public var wrappedValue: State? {
-    _read { yield self.storage.state }
-    _modify {
+    get { self.storage.state }
+    set {
       if !isKnownUniquelyReferenced(&self.storage) {
-        self.storage = Storage(state: self.storage.state)
+        self.storage = Storage(state: newValue)
+      } else {
+        self.storage.state = newValue
       }
-      yield &self.storage.state
     }
   }
 
   public var projectedValue: Self {
     get { self }
     set { self = newValue }
-    _modify { yield &self }
+  }
+
+  public subscript<Case>(
+    dynamicMember keyPath: CaseKeyPath<State, Case>
+  ) -> PresentationState<Case>
+  where State: CasePathable {
+    PresentationState<Case>(wrappedValue: self.wrappedValue.flatMap { $0[case: keyPath] })
+  }
+
+  public subscript<Member>(
+    dynamicMember keyPath: KeyPath<State, Member>
+  ) -> PresentationState<Member> {
+    PresentationState<Member>(wrappedValue: self.wrappedValue?[keyPath: keyPath])
   }
 
   /// Accesses the value associated with the given case for reading and writing.
   ///
-  /// > Note: Accessing the wrong case will result in a runtime warning.
-  public subscript<Case>(case path: CasePath<State, Case>) -> Case? {
+  /// If you use the techniques of tree-based navigation (see <doc:TreeBasedNavigation>), then
+  /// you will have a single enum that determines the destinations your feature can navigate to,
+  /// and you will hold onto that state using the ``Presents()`` macro:
+  ///
+  /// ```swift
+  /// @ObservableState
+  /// struct State {
+  ///   @Presents var destination: Destination.State
+  /// }
+  /// ```
+  ///
+  /// The `destination` property has a projected value of ``PresentationState``, which gives you a
+  /// succinct syntax for modifying the data in a particular case of the `Destination` enum, like
+  /// so:
+  ///
+  /// ```swift
+  /// state.$destination[case: \.detail]?.alert = AlertState {
+  ///   Text("Delete?")
+  /// }
+  /// ```
+  ///
+  /// > Important: Accessing the wrong case will result in a runtime warning and test failure.
+  public subscript<Case>(case path: CaseKeyPath<State, Case>) -> Case?
+  where State: CasePathable {
+    _read { yield self[case: AnyCasePath(path)] }
+    _modify { yield &self[case: AnyCasePath(path)] }
+  }
+
+  @available(
+    iOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this subscript with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  @available(
+    macOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this subscript with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  @available(
+    tvOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this subscript with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  @available(
+    watchOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this subscript with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  public subscript<Case>(
+    case path: AnyCasePath<State, Case>,
+    fileID: StaticString = #fileID,
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
+  ) -> Case? {
     _read { yield self.wrappedValue.flatMap(path.extract) }
     _modify {
       let root = self.wrappedValue
@@ -93,10 +166,14 @@ public struct PresentationState<State> {
         {
           description = caseName
         }
-        runtimeWarn(
+        reportIssue(
           """
           Can't modify unrelated case\(description.map { " \($0.debugDescription)" } ?? "")
-          """
+          """,
+          fileID: fileID,
+          filePath: filePath,
+          line: line,
+          column: column
         )
         return
       }
@@ -111,7 +188,8 @@ public struct PresentationState<State> {
 
 extension PresentationState: Equatable where State: Equatable {
   public static func == (lhs: Self, rhs: Self) -> Bool {
-    lhs.wrappedValue == rhs.wrappedValue
+    lhs.sharesStorage(with: rhs)
+      || lhs.wrappedValue == rhs.wrappedValue
   }
 }
 
@@ -153,14 +231,15 @@ extension PresentationState: CustomReflectable {
 /// A wrapper type for actions that can be presented.
 ///
 /// Use this wrapper type for modeling a feature's domain that needs to present a child
-/// feature using ``Reducer/ifLet(_:action:destination:fileID:line:)``.
+/// feature using ``Reducer/ifLet(_:action:destination:fileID:line:)-4k9by``.
 ///
 /// For example, if you have a `ChildFeature` reducer that encapsulates the logic and behavior
 /// for a feature, then any feature that wants to present that feature will hold onto
 /// `ChildFeature.Action` like so:
 ///
 /// ```swift
-/// struct ParentFeature: Reducer {
+/// @Reducer
+/// struct ParentFeature {
 ///   // ...
 ///   enum Action {
 ///     case child(PresentationAction<ChildFeature.Action>)
@@ -186,6 +265,73 @@ public enum PresentationAction<Action> {
   indirect case presented(Action)
 }
 
+extension PresentationAction: CasePathable {
+  public static var allCasePaths: AllCasePaths {
+    AllCasePaths()
+  }
+
+  @dynamicMemberLookup
+  public struct AllCasePaths {
+    public var dismiss: AnyCasePath<PresentationAction, Void> {
+      AnyCasePath(
+        embed: { .dismiss },
+        extract: {
+          guard case .dismiss = $0 else { return nil }
+          return ()
+        }
+      )
+    }
+
+    public var presented: AnyCasePath<PresentationAction, Action> {
+      AnyCasePath(
+        embed: { .presented($0) },
+        extract: {
+          guard case let .presented(value) = $0 else { return nil }
+          return value
+        }
+      )
+    }
+
+    public subscript<AppendedAction>(
+      dynamicMember keyPath: CaseKeyPath<Action, AppendedAction>
+    ) -> AnyCasePath<PresentationAction, AppendedAction>
+    where Action: CasePathable {
+      AnyCasePath<PresentationAction, AppendedAction>(
+        embed: { .presented(keyPath($0)) },
+        extract: {
+          guard case let .presented(action) = $0 else { return nil }
+          return action[case: keyPath]
+        }
+      )
+    }
+
+    @_disfavoredOverload
+    public subscript<AppendedAction>(
+      dynamicMember keyPath: CaseKeyPath<Action, AppendedAction>
+    ) -> AnyCasePath<PresentationAction, PresentationAction<AppendedAction>>
+    where Action: CasePathable {
+      AnyCasePath<PresentationAction, PresentationAction<AppendedAction>>(
+        embed: {
+          switch $0 {
+          case .dismiss:
+            return .dismiss
+          case let .presented(action):
+            return .presented(keyPath(action))
+          }
+        },
+        extract: {
+          switch $0 {
+          case .dismiss:
+            return .dismiss
+          case let .presented(action):
+            return action[case: keyPath].map { .presented($0) }
+          }
+        }
+      )
+    }
+  }
+}
+
 extension PresentationAction: Equatable where Action: Equatable {}
 extension PresentationAction: Hashable where Action: Hashable {}
 extension PresentationAction: Sendable where Action: Sendable {}
@@ -195,16 +341,18 @@ extension PresentationAction: Encodable where Action: Encodable {}
 extension Reducer {
   /// Embeds a child reducer in a parent domain that works on an optional property of parent state.
   ///
-  /// This version of `ifLet` requires the usage of ``PresentationState`` and ``PresentationAction``
-  /// in your feature's domain.
+  /// This version of `ifLet` requires the usage of the ``Presents()`` macro and
+  /// ``PresentationAction`` type in your feature's domain.
   ///
   /// For example, if a parent feature holds onto a piece of optional child state, then it can
   /// perform its core logic _and_ the child's logic by using the `ifLet` operator:
   ///
   /// ```swift
-  /// struct Parent: Reducer {
+  /// @Reducer
+  /// struct Parent {
+  ///   @ObservableState
   ///   struct State {
-  ///     @PresentationState var child: Child.State?
+  ///     @Presents var child: Child.State?
   ///     // ...
   ///   }
   ///   enum Action {
@@ -216,7 +364,7 @@ extension Reducer {
   ///     Reduce { state, action in
   ///       // Core logic for parent feature
   ///     }
-  ///     .ifLet(\.$child, action: /Action.child) {
+  ///     .ifLet(\.$child, action: \.child) {
   ///       Child()
   ///     }
   ///   }
@@ -253,40 +401,143 @@ extension Reducer {
   /// - Returns: A reducer that combines the child reducer with the parent reducer.
   @warn_unqualified_access
   @inlinable
-  public func ifLet<DestinationState, DestinationAction, Destination: Reducer>(
+  public func ifLet<
+    DestinationState, DestinationAction, Destination: Reducer<DestinationState, DestinationAction>
+  >(
     _ toPresentationState: WritableKeyPath<State, PresentationState<DestinationState>>,
-    action toPresentationAction: CasePath<Action, PresentationAction<DestinationAction>>,
+    action toPresentationAction: CaseKeyPath<Action, PresentationAction<DestinationAction>>,
     @ReducerBuilder<DestinationState, DestinationAction> destination: () -> Destination,
     fileID: StaticString = #fileID,
-    line: UInt = #line
-  ) -> _PresentationReducer<Self, Destination>
-  where Destination.State == DestinationState, Destination.Action == DestinationAction {
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
+  ) -> some Reducer<State, Action> {
+    _PresentationReducer(
+      base: self,
+      toPresentationState: toPresentationState,
+      toPresentationAction: AnyCasePath(toPresentationAction),
+      destination: destination(),
+      fileID: fileID,
+      filePath: filePath,
+      line: line,
+      column: column
+    )
+  }
+
+  /// A special overload of ``Reducer/ifLet(_:action:destination:fileID:line:)-4k9by`` for alerts
+  /// and confirmation dialogs that does not require a child reducer.
+  @warn_unqualified_access
+  @inlinable
+  public func ifLet<DestinationState: _EphemeralState, DestinationAction>(
+    _ toPresentationState: WritableKeyPath<State, PresentationState<DestinationState>>,
+    action toPresentationAction: CaseKeyPath<Action, PresentationAction<DestinationAction>>,
+    fileID: StaticString = #fileID,
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
+  ) -> some Reducer<State, Action> {
+    self.ifLet(
+      toPresentationState,
+      action: toPresentationAction,
+      destination: {},
+      fileID: fileID,
+      filePath: filePath,
+      line: line,
+      column: column
+    )
+  }
+
+  @available(
+    iOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this operator with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  @available(
+    macOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this operator with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  @available(
+    tvOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this operator with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  @available(
+    watchOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this operator with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  @warn_unqualified_access
+  @inlinable
+  public func ifLet<
+    DestinationState, DestinationAction, Destination: Reducer<DestinationState, DestinationAction>
+  >(
+    _ toPresentationState: WritableKeyPath<State, PresentationState<DestinationState>>,
+    action toPresentationAction: AnyCasePath<Action, PresentationAction<DestinationAction>>,
+    @ReducerBuilder<DestinationState, DestinationAction> destination: () -> Destination,
+    fileID: StaticString = #fileID,
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
+  ) -> some Reducer<State, Action> {
     _PresentationReducer(
       base: self,
       toPresentationState: toPresentationState,
       toPresentationAction: toPresentationAction,
       destination: destination(),
       fileID: fileID,
-      line: line
+      filePath: filePath,
+      line: line,
+      column: column
     )
   }
 
-  /// A special overload of ``Reducer/ifLet(_:action:destination:fileID:line:)`` for alerts and
-  /// confirmation dialogs that does not require a child reducer.
+  @available(
+    iOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this operator with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  @available(
+    macOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this operator with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  @available(
+    tvOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this operator with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
+  @available(
+    watchOS,
+    deprecated: 9999,
+    message:
+      "Use the version of this operator with case key paths, instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Using-case-key-paths"
+  )
   @warn_unqualified_access
   @inlinable
   public func ifLet<DestinationState: _EphemeralState, DestinationAction>(
     _ toPresentationState: WritableKeyPath<State, PresentationState<DestinationState>>,
-    action toPresentationAction: CasePath<Action, PresentationAction<DestinationAction>>,
+    action toPresentationAction: AnyCasePath<Action, PresentationAction<DestinationAction>>,
     fileID: StaticString = #fileID,
-    line: UInt = #line
-  ) -> _PresentationReducer<Self, EmptyReducer<DestinationState, DestinationAction>> {
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
+  ) -> some Reducer<State, Action> {
     self.ifLet(
       toPresentationState,
       action: toPresentationAction,
       destination: {},
       fileID: fileID,
-      line: line
+      filePath: filePath,
+      line: line,
+      column: column
     )
   }
 }
@@ -296,10 +547,12 @@ public struct _PresentationReducer<Base: Reducer, Destination: Reducer>: Reducer
   @usableFromInline let toPresentationState:
     WritableKeyPath<Base.State, PresentationState<Destination.State>>
   @usableFromInline let toPresentationAction:
-    CasePath<Base.Action, PresentationAction<Destination.Action>>
+    AnyCasePath<Base.Action, PresentationAction<Destination.Action>>
   @usableFromInline let destination: Destination
   @usableFromInline let fileID: StaticString
+  @usableFromInline let filePath: StaticString
   @usableFromInline let line: UInt
+  @usableFromInline let column: UInt
 
   @Dependency(\.navigationIDPath) var navigationIDPath
 
@@ -307,17 +560,21 @@ public struct _PresentationReducer<Base: Reducer, Destination: Reducer>: Reducer
   init(
     base: Base,
     toPresentationState: WritableKeyPath<Base.State, PresentationState<Destination.State>>,
-    toPresentationAction: CasePath<Base.Action, PresentationAction<Destination.Action>>,
+    toPresentationAction: AnyCasePath<Base.Action, PresentationAction<Destination.Action>>,
     destination: Destination,
     fileID: StaticString,
-    line: UInt
+    filePath: StaticString,
+    line: UInt,
+    column: UInt
   ) {
     self.base = base
     self.toPresentationState = toPresentationState
     self.toPresentationAction = toPresentationAction
     self.destination = destination
     self.fileID = fileID
+    self.filePath = filePath
     self.line = line
+    self.column = column
   }
 
   public func reduce(into state: inout Base.State, action: Base.Action) -> Effect<Base.Action> {
@@ -366,7 +623,7 @@ public struct _PresentationReducer<Base: Reducer, Destination: Reducer>: Reducer
       baseEffects = self.base.reduce(into: &state, action: action)
 
     case (.none, .some):
-      runtimeWarn(
+      reportIssue(
         """
         An "ifLet" at "\(self.fileID):\(self.line)" received a presentation action when \
         destination state was absent. …
@@ -385,7 +642,11 @@ public struct _PresentationReducer<Base: Reducer, Destination: Reducer>: Reducer
         actions for this reducer can only be sent from a view store when state is present, or \
         from effects that start from this reducer. In SwiftUI applications, use a Composable \
         Architecture view modifier like "sheet(store:…)".
-        """
+        """,
+        fileID: fileID,
+        filePath: filePath,
+        line: line,
+        column: column
       )
       destinationEffects = .none
       baseEffects = self.base.reduce(into: &state, action: action)
@@ -467,7 +728,7 @@ public struct _PresentedID: Hashable {
   init(internal: Void) {}
 }
 
-extension Task where Success == Never, Failure == Never {
+extension Task<Never, Never> {
   internal static func _cancel<ID: Hashable>(
     id: ID,
     navigationID: NavigationIDPath

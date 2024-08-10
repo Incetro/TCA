@@ -61,16 +61,42 @@ import SwiftUI
 /// > store it was derived from) must happen on the same thread. Further, for SwiftUI applications,
 /// > all interactions must happen on the _main_ thread. See the documentation of the ``Store``
 /// > class for more information as to why this decision was made.
+@available(
+  iOS,
+  deprecated: 9999,
+  message:
+    "Use '@ObservableState', instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Using-ObservableState"
+)
+@available(
+  macOS,
+  deprecated: 9999,
+  message:
+    "Use '@ObservableState', instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Using-ObservableState"
+)
+@available(
+  tvOS,
+  deprecated: 9999,
+  message:
+    "Use '@ObservableState', instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Using-ObservableState"
+)
+@available(
+  watchOS,
+  deprecated: 9999,
+  message:
+    "Use '@ObservableState', instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.7#Using-ObservableState"
+)
 @dynamicMemberLookup
 public final class ViewStore<ViewState, ViewAction>: ObservableObject {
   // N.B. `ViewStore` does not use a `@Published` property, so `objectWillChange`
   // won't be synthesized automatically. To work around issues on iOS 13 we explicitly declare it.
   public private(set) lazy var objectWillChange = ObservableObjectPublisher()
+  private let _state: CurrentValueRelay<ViewState>
 
-  let _isInvalidated: () -> Bool
-  private let _send: (ViewAction) -> Task<Void, Never>?
-  fileprivate let _state: CurrentValueRelay<ViewState>
   private var viewCancellable: AnyCancellable?
+  #if DEBUG
+    private var storeTypeName: String
+  #endif
+  let store: Store<ViewState, ViewAction>
 
   /// Initializes a view store from a store which observes changes to state.
   ///
@@ -86,22 +112,17 @@ public final class ViewStore<ViewState, ViewAction>: ObservableObject {
   ///   changes.
   ///   - isDuplicate: A function to determine when two `State` values are equal. When values are
   ///   equal, repeat view computations are removed.
-  public init<State>(
+  public convenience init<State>(
     _ store: Store<State, ViewAction>,
     observe toViewState: @escaping (_ state: State) -> ViewState,
     removeDuplicates isDuplicate: @escaping (_ lhs: ViewState, _ rhs: ViewState) -> Bool
   ) {
-    self._send = { store.send($0, originatingFrom: nil) }
-    self._state = CurrentValueRelay(toViewState(store.state.value))
-    self._isInvalidated = store._isInvalidated
-    self.viewCancellable = store.state
-      .map(toViewState)
-      .removeDuplicates(by: isDuplicate)
-      .sink { [weak objectWillChange = self.objectWillChange, weak _state = self._state] in
-        guard let objectWillChange = objectWillChange, let _state = _state else { return }
-        objectWillChange.send()
-        _state.value = $0
-      }
+    self.init(
+      store,
+      observe: toViewState,
+      send: { $0 },
+      removeDuplicates: isDuplicate
+    )
   }
 
   /// Initializes a view store from a store which observes changes to state.
@@ -125,26 +146,45 @@ public final class ViewStore<ViewState, ViewAction>: ObservableObject {
     send fromViewAction: @escaping (_ viewAction: ViewAction) -> Action,
     removeDuplicates isDuplicate: @escaping (_ lhs: ViewState, _ rhs: ViewState) -> Bool
   ) {
-    self._send = { store.send(fromViewAction($0), originatingFrom: nil) }
-    self._state = CurrentValueRelay(toViewState(store.state.value))
-    self._isInvalidated = store._isInvalidated
-    self.viewCancellable = store.state
-      .map(toViewState)
+    #if DEBUG
+      self.storeTypeName = ComposableArchitecture.storeTypeName(of: store)
+      Logger.shared.log("View\(self.storeTypeName).init")
+    #endif
+    self.store = store.scope(
+      id: nil,
+      state: ToState(toViewState),
+      action: fromViewAction,
+      isInvalid: nil
+    )
+    self._state = CurrentValueRelay(self.store.withState { $0 })
+    self.viewCancellable = self.store.rootStore.didSet
+      .compactMap { [weak self] in self?.store.withState { $0 } }
       .removeDuplicates(by: isDuplicate)
-      .sink { [weak objectWillChange = self.objectWillChange, weak _state = self._state] in
-        guard let objectWillChange = objectWillChange, let _state = _state else { return }
-        objectWillChange.send()
-        _state.value = $0
+      .dropFirst()
+      .sink { [weak self] in
+        self?.objectWillChange.send()
+        self?._state.value = $0
       }
   }
 
   init(_ viewStore: ViewStore<ViewState, ViewAction>) {
-    self._send = viewStore._send
+    #if DEBUG
+      self.storeTypeName = viewStore.storeTypeName
+      Logger.shared.log("View\(self.storeTypeName).init")
+    #endif
+    self.store = viewStore.store
     self._state = viewStore._state
-    self._isInvalidated = viewStore._isInvalidated
-    self.objectWillChange = viewStore.objectWillChange
-    self.viewCancellable = viewStore.viewCancellable
+    self.viewCancellable = viewStore.objectWillChange.sink { [weak self] in
+      self?.objectWillChange.send()
+      self?._state.value = viewStore.state
+    }
   }
+
+  #if DEBUG
+    deinit {
+      Logger.shared.log("View\(self.storeTypeName).deinit")
+    }
+  #endif
 
   /// A publisher that emits when state changes.
   ///
@@ -182,7 +222,7 @@ public final class ViewStore<ViewState, ViewAction>: ObservableObject {
 
   /// Returns the resulting value of a given key path.
   public subscript<Value>(dynamicMember keyPath: KeyPath<ViewState, Value>) -> Value {
-    self._state.value[keyPath: keyPath]
+    self.state[keyPath: keyPath]
   }
 
   /// Sends an action to the store.
@@ -206,7 +246,7 @@ public final class ViewStore<ViewState, ViewAction>: ObservableObject {
   ///   sending the action.
   @discardableResult
   public func send(_ action: ViewAction) -> StoreTask {
-    .init(rawValue: self._send(action))
+    self.store.send(action)
   }
 
   /// Sends an action to the store with a given animation.
@@ -218,7 +258,7 @@ public final class ViewStore<ViewState, ViewAction>: ObservableObject {
   ///   - animation: An animation.
   @discardableResult
   public func send(_ action: ViewAction, animation: Animation?) -> StoreTask {
-    send(action, transaction: Transaction(animation: animation))
+    self.send(action, transaction: Transaction(animation: animation))
   }
 
   /// Sends an action to the store with a given transaction.
@@ -245,29 +285,32 @@ public final class ViewStore<ViewState, ViewAction>: ObservableObject {
   /// gesture is performed on a list. The domain and logic for this feature can be modeled like so:
   ///
   /// ```swift
-  /// struct Feature: Reducer {
+  /// @Reducer
+  /// struct Feature {
   ///   struct State: Equatable {
   ///     var isLoading = false
   ///     var response: String?
   ///   }
   ///   enum Action {
   ///     case pulledToRefresh
-  ///     case receivedResponse(TaskResult<String>)
+  ///     case receivedResponse(Result<String, Error>)
   ///   }
   ///   @Dependency(\.fetch) var fetch
   ///
-  ///   func reduce(into state: inout State, action: Action) -> Effect<Action> {
-  ///     switch action {
-  ///     case .pulledToRefresh:
-  ///       state.isLoading = true
-  ///       return .run { send in
-  ///         await send(.receivedResponse(TaskResult { try await self.fetch() }))
-  ///       }
+  ///   var body: some Reducer<State, Action> {
+  ///     Reduce { state, action in
+  ///       switch action {
+  ///       case .pulledToRefresh:
+  ///         state.isLoading = true
+  ///         return .run { send in
+  ///           await send(.receivedResponse(Result { try await self.fetch() }))
+  ///         }
   ///
-  ///     case let .receivedResponse(result):
-  ///       state.isLoading = false
-  ///       state.response = try? result.value
-  ///       return .none
+  ///       case let .receivedResponse(result):
+  ///         state.isLoading = false
+  ///         state.response = try? result.value
+  ///         return .none
+  ///       }
   ///     }
   ///   }
   /// }

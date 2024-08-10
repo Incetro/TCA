@@ -15,6 +15,7 @@
 - ``cancellable(id:cancelInFlight:)``
 - ``cancel(id:)``
 - ``withTaskCancellation(id:cancelInFlight:operation:)``
+- ``_Concurrency/Task/cancel(id:)``
 
 ### Composition
 
@@ -34,3 +35,5 @@
 ### Combine integration
 
 - ``publisher(_:)``
+- ``debounce(id:for:scheduler:options:)``
+- ``throttle(id:for:scheduler:latest:)``

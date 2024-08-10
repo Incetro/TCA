@@ -1,9 +1,9 @@
 import ComposableArchitecture
 import XCTest
 
-@MainActor
 final class BindingTests: BaseTCATestCase {
-  struct BindingTest: Reducer {
+  @Reducer
+  struct BindingTest {
     struct State: Equatable {
       @BindingState var nested = Nested()
 
@@ -47,6 +47,7 @@ final class BindingTests: BaseTCATestCase {
     )
   }
 
+  @MainActor
   func testViewEquality() {
     struct Feature: Reducer {
       struct State: Equatable {
@@ -74,6 +75,7 @@ final class BindingTests: BaseTCATestCase {
     XCTAssertEqual(count.wrappedValue, 1)
   }
 
+  @MainActor
   func testNestedBindingState() {
     let store = Store(initialState: BindingTest.State()) { BindingTest() }
 
@@ -84,6 +86,7 @@ final class BindingTests: BaseTCATestCase {
     XCTAssertEqual(viewStore.state, .init(nested: .init(field: "Hello!")))
   }
 
+  @MainActor
   func testNestedBindingViewState() {
     struct ViewState: Equatable {
       @BindingViewState var field: String
@@ -98,6 +101,7 @@ final class BindingTests: BaseTCATestCase {
     XCTAssertEqual(store.withState { $0.nested.field }, "Hello!")
   }
 
+  @MainActor
   func testBindingActionUpdatesRespectsPatternMatching() async {
     let testStore = TestStore(
       initialState: BindingTest.State(nested: BindingTest.State.Nested(field: ""))
@@ -113,16 +117,17 @@ final class BindingTests: BaseTCATestCase {
     }
   }
 
-  // NB: This crashes in Swift(<5.8) RELEASE when `BindingAction` holds directly onto an unboxed
-  //     `value: Any` existential
-  func testLayoutBug() {
-    enum Foo {
-      case bar(Baz)
+  struct TestMatching {
+    struct CounterState {
+      @BindingState var count = 0
     }
-    enum Baz {
-      case fizz(BindingAction<Void>)
-      case buzz(Bool)
+    @CasePathable
+    enum CounterAction: CasePathable {
+      case binding(BindingAction<CounterState>)
     }
-    _ = (/Foo.bar).extract(from: .bar(.buzz(true)))
+  }
+  func testMatching() {
+    let action = TestMatching.CounterAction.binding(.set(\.$count, 42))
+    XCTAssertEqual(action[case: \.binding.$count], 42)
   }
 }

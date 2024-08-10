@@ -1,6 +1,6 @@
 extension ContactsFeature {
-  struct Destination: Reducer {
-    enum State: Equatable {
-    }
+  @Reducer
+  enum Destination {
+    case addContact(AddContactFeature)
   }
 }

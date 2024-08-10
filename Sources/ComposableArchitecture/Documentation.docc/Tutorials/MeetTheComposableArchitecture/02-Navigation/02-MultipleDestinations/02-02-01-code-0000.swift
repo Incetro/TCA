@@ -1,9 +1,11 @@
-struct ContactsFeature: Reducer {
+@Reducer
+struct ContactsFeature {
+  @ObservableState
   struct State: Equatable {
-    @PresentationState var addContact: AddContactFeature.State?
+    @Presents var addContact: AddContactFeature.State?
     var contacts: IdentifiedArrayOf<Contact> = []
   }
-  enum Action: Equatable {
+  enum Action {
     case addButtonTapped
     case addContact(PresentationAction<AddContactFeature.Action>)
     case deleteButtonTapped(id: Contact.ID)
@@ -16,19 +18,19 @@ struct ContactsFeature: Reducer {
           contact: Contact(id: UUID(), name: "")
         )
         return .none
-
+        
       case let .addContact(.presented(.delegate(.saveContact(contact)))):
         state.contacts.append(contact)
         return .none
-
+        
       case .addContact:
         return .none
-
+        
       case let .deleteButtonTapped(id: id):
         return .none
       }
     }
-    .ifLet(\.$addContact, action: /Action.addContact) {
+    .ifLet(\.$addContact, action: \.addContact) {
       AddContactFeature()
     }
   }

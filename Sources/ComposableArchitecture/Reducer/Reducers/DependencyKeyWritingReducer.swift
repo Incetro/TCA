@@ -11,7 +11,8 @@ extension Reducer {
   /// feature's domain and layers on additional logic:
   ///
   /// ```swift
-  /// struct Onboarding: Reducer {
+  /// @Reducer
+  /// struct Onboarding {
   ///   struct State {
   ///     var feature: Feature.State
   ///     // Additional onboarding state
@@ -22,7 +23,7 @@ extension Reducer {
   ///   }
   ///
   ///   var body: some Reducer<State, Action> {
-  ///     Scope(state: \.feature, action: /Action.feature) {
+  ///     Scope(state: \.feature, action: \.feature) {
   ///       Feature()
   ///     }
   ///
@@ -45,7 +46,7 @@ extension Reducer {
   ///
   /// ```swift
   /// var body: some Reducer<State, Action> {
-  ///   Scope(state: \.feature, action: /Action.feature) {
+  ///   Scope(state: \.feature, action: \.feature) {
   ///     Feature()
   ///       .dependency(\.apiClient, .mock)
   ///       .dependency(\.userDefaults, .mock)
@@ -76,6 +77,22 @@ extension Reducer {
     -> _DependencyKeyWritingReducer<Self>
   {
     _DependencyKeyWritingReducer(base: self) { $0[keyPath: keyPath] = value }
+  }
+
+  /// Places a value in the reducer's dependencies.
+  ///
+  /// - Parameter value: The value to set for this value's type in the dependencies.
+  /// - Returns: A reducer that has the given value set in its dependencies.
+  @inlinable
+  @warn_unqualified_access
+  public func dependency<Value: TestDependencyKey>(
+    _ value: Value
+  )
+    // NB: We should not return `some Reducer<State, Action>` here. That would prevent the
+    //     specialization defined below from being called, which fuses chained calls.
+    -> _DependencyKeyWritingReducer<Self>
+  where Value.Value == Value {
+    _DependencyKeyWritingReducer(base: self) { $0[Value.self] = value }
   }
 
   /// Transform a reducer's dependency value at the specified key path with the given function.

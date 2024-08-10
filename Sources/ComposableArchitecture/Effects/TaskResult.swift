@@ -1,5 +1,3 @@
-import XCTestDynamicOverlay
-
 /// A value that represents either a success or a failure. This type differs from Swift's `Result`
 /// type in that it uses only one generic for the success case, leaving the failure case as an
 /// untyped `Error`.
@@ -102,6 +100,30 @@ import XCTestDynamicOverlay
 ///   $0.isLoading = false
 /// }
 /// ```
+@available(
+  iOS,
+  deprecated: 9999,
+  message:
+    "Use 'Result', instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Moving-off-of-TaskResult"
+)
+@available(
+  macOS,
+  deprecated: 9999,
+  message:
+    "Use 'Result', instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Moving-off-of-TaskResult"
+)
+@available(
+  tvOS,
+  deprecated: 9999,
+  message:
+    "Use 'Result', instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Moving-off-of-TaskResult"
+)
+@available(
+  watchOS,
+  deprecated: 9999,
+  message:
+    "Use 'Result', instead. See the following migration guide for more information: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.4#Moving-off-of-TaskResult"
+)
 public enum TaskResult<Success: Sendable>: Sendable {
   /// A success, storing a `Success` value.
   case success(Success)
@@ -188,6 +210,34 @@ public enum TaskResult<Success: Sendable>: Sendable {
   }
 }
 
+extension TaskResult: CasePathable {
+  public static var allCasePaths: AllCasePaths {
+    AllCasePaths()
+  }
+
+  public struct AllCasePaths {
+    public var success: AnyCasePath<TaskResult, Success> {
+      AnyCasePath(
+        embed: { .success($0) },
+        extract: {
+          guard case let .success(value) = $0 else { return nil }
+          return value
+        }
+      )
+    }
+
+    public var failure: AnyCasePath<TaskResult, Error> {
+      AnyCasePath(
+        embed: { .failure($0) },
+        extract: {
+          guard case let .failure(value) = $0 else { return nil }
+          return value
+        }
+      )
+    }
+  }
+}
+
 extension Result where Success: Sendable, Failure == Error {
   /// Transforms a `TaskResult` into a `Result`.
   ///
@@ -219,7 +269,7 @@ extension TaskResult: Equatable where Success: Equatable {
             let lhsType = type(of: lhs)
             if TaskResultDebugging.emitRuntimeWarnings, lhsType == type(of: rhs) {
               let lhsTypeName = typeName(lhsType)
-              runtimeWarn(
+              reportIssue(
                 """
                 "\(lhsTypeName)" is not equatable. …
 
@@ -255,7 +305,7 @@ extension TaskResult: Hashable where Success: Hashable {
         #if DEBUG
           if TaskResultDebugging.emitRuntimeWarnings {
             let errorType = typeName(type(of: error))
-            runtimeWarn(
+            reportIssue(
               """
               "\(errorType)" is not hashable. …
 

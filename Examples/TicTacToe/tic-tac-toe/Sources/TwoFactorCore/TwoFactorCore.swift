@@ -3,10 +3,12 @@ import Combine
 import ComposableArchitecture
 import Dispatch
 
-public struct TwoFactor: Reducer, Sendable {
+@Reducer
+public struct TwoFactor: Sendable {
+  @ObservableState
   public struct State: Equatable {
-    @PresentationState public var alert: AlertState<Action.Alert>?
-    @BindingState public var code = ""
+    @Presents public var alert: AlertState<Action.Alert>?
+    public var code = ""
     public var isFormValid = false
     public var isTwoFactorRequestInFlight = false
     public let token: String
@@ -16,14 +18,15 @@ public struct TwoFactor: Reducer, Sendable {
     }
   }
 
-  public enum Action: Equatable, Sendable {
+  public enum Action: Sendable, ViewAction {
     case alert(PresentationAction<Alert>)
-    case twoFactorResponse(TaskResult<AuthenticationResponse>)
+    case twoFactorResponse(Result<AuthenticationResponse, Error>)
     case view(View)
 
     public enum Alert: Equatable, Sendable {}
 
-    public enum View: BindableAction, Equatable, Sendable {
+    @CasePathable
+    public enum View: BindableAction, Sendable {
       case binding(BindingAction<State>)
       case submitButtonTapped
     }
@@ -34,7 +37,7 @@ public struct TwoFactor: Reducer, Sendable {
   public init() {}
 
   public var body: some ReducerOf<Self> {
-    BindingReducer(action: /Action.view)
+    BindingReducer(action: \.view)
     Reduce { state, action in
       switch action {
       case .alert:
@@ -58,14 +61,14 @@ public struct TwoFactor: Reducer, Sendable {
         return .run { [code = state.code, token = state.token] send in
           await send(
             .twoFactorResponse(
-              await TaskResult {
-                try await self.authenticationClient.twoFactor(.init(code: code, token: token))
+              await Result {
+                try await self.authenticationClient.twoFactor(code: code, token: token)
               }
             )
           )
         }
       }
     }
-    .ifLet(\.$alert, action: /Action.alert)
+    .ifLet(\.$alert, action: \.alert)
   }
 }

@@ -47,28 +47,41 @@ day-to-day when building applications, such as:
 
 ### Essentials
 
-- <doc:MeetComposableArchitecture>
 - <doc:GettingStarted>
 - <doc:DependencyManagement>
 - <doc:Testing>
 - <doc:Navigation>
+- <doc:SharingState>
 - <doc:Performance>
+- <doc:FAQ>
+
+### Tutorials
+
+- <doc:MeetComposableArchitecture>
+- <doc:BuildingSyncUps>
 
 ### State management
 
-- ``Reducer``
+- <doc:Reducers>
 - ``Effect``
 - ``Store``
-- ``ViewStore``
+- <doc:SharingState>
+
 ### Testing
 
 - ``TestStore``
+- <doc:Testing>
 
 ### Integrations
 
 - <doc:SwiftConcurrency>
 - <doc:SwiftUIIntegration>
+- <doc:ObservationBackport>
 - <doc:UIKit>
+
+### Migration guides
+
+- <doc:MigrationGuides>
 
 ## See Also
 

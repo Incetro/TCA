@@ -1,44 +1,44 @@
 import ComposableArchitecture
 import XCTest
 
-@MainActor
+@available(*, deprecated, message: "TODO: Update to use case pathable syntax with Swift 5.9")
 final class IfLetReducerTests: BaseTCATestCase {
-  #if DEBUG
-    func testNilChild() async {
-      let store = TestStore(initialState: Int?.none) {
-        EmptyReducer<Int?, Void>()
-          .ifLet(\.self, action: /.self) {}
-      }
-
-      XCTExpectFailure {
-        $0.compactDescription == """
-          An "ifLet" at "\(#fileID):\(#line - 5)" received a child action when child state was \
-          "nil". …
-
-            Action:
-              ()
-
-          This is generally considered an application logic error, and can happen for a few \
-          reasons:
-
-          • A parent reducer set child state to "nil" before this reducer ran. This reducer must \
-          run before any other reducer sets child state to "nil". This ensures that child \
-          reducers can handle their actions while their state is still available.
-
-          • An in-flight effect emitted this action when child state was "nil". While it may be \
-          perfectly reasonable to ignore this action, consider canceling the associated effect \
-          before child state becomes "nil", especially if it is a long-living effect.
-
-          • This action was sent to the store while state was "nil". Make sure that actions for \
-          this reducer can only be sent from a view store when state is non-"nil". In SwiftUI \
-          applications, use "IfLetStore".
-          """
-      }
-
-      await store.send(())
+  @MainActor
+  func testNilChild() async {
+    let store = TestStore(initialState: Int?.none) {
+      EmptyReducer<Int?, Void>()
+        .ifLet(\.self, action: \.self) {}
     }
-  #endif
 
+    XCTExpectFailure {
+      $0.compactDescription == """
+        failed - An "ifLet" at "\(#fileID):\(#line - 5)" received a child action when child state \
+        was "nil". …
+
+          Action:
+            ()
+
+        This is generally considered an application logic error, and can happen for a few \
+        reasons:
+
+        • A parent reducer set child state to "nil" before this reducer ran. This reducer must \
+        run before any other reducer sets child state to "nil". This ensures that child \
+        reducers can handle their actions while their state is still available.
+
+        • An in-flight effect emitted this action when child state was "nil". While it may be \
+        perfectly reasonable to ignore this action, consider canceling the associated effect \
+        before child state becomes "nil", especially if it is a long-living effect.
+
+        • This action was sent to the store while state was "nil". Make sure that actions for \
+        this reducer can only be sent from a view store when state is non-"nil". In SwiftUI \
+        applications, use "IfLetStore".
+        """
+    }
+
+    await store.send(())
+  }
+
+  @MainActor
   func testEffectCancellation() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Child: Reducer {
@@ -50,17 +50,19 @@ final class IfLetReducerTests: BaseTCATestCase {
           case timerTick
         }
         @Dependency(\.continuousClock) var clock
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .timerButtonTapped:
-            return .run { send in
-              for await _ in self.clock.timer(interval: .seconds(1)) {
-                await send(.timerTick)
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .timerButtonTapped:
+              return .run { send in
+                for await _ in self.clock.timer(interval: .seconds(1)) {
+                  await send(.timerTick)
+                }
               }
+            case .timerTick:
+              state.count += 1
+              return .none
             }
-          case .timerTick:
-            state.count += 1
-            return .none
           }
         }
       }
@@ -99,12 +101,12 @@ final class IfLetReducerTests: BaseTCATestCase {
       await store.send(.child(.timerButtonTapped))
       await clock.advance(by: .seconds(2))
       await store.receive(.child(.timerTick)) {
-        try (/.some).modify(&$0.child) {
+        XCTModify(&$0.child) {
           $0.count = 1
         }
       }
       await store.receive(.child(.timerTick)) {
-        try (/.some).modify(&$0.child) {
+        XCTModify(&$0.child) {
           $0.count = 2
         }
       }
@@ -114,6 +116,7 @@ final class IfLetReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testGrandchildEffectCancellation() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct GrandChild: Reducer {
@@ -125,17 +128,19 @@ final class IfLetReducerTests: BaseTCATestCase {
           case timerTick
         }
         @Dependency(\.continuousClock) var clock
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
-          switch action {
-          case .timerButtonTapped:
-            return .run { send in
-              for await _ in self.clock.timer(interval: .seconds(1)) {
-                await send(.timerTick)
+        var body: some Reducer<State, Action> {
+          Reduce { state, action in
+            switch action {
+            case .timerButtonTapped:
+              return .run { send in
+                for await _ in self.clock.timer(interval: .seconds(1)) {
+                  await send(.timerTick)
+                }
               }
+            case .timerTick:
+              state.count += 1
+              return .none
             }
-          case .timerTick:
-            state.count += 1
-            return .none
           }
         }
       }
@@ -192,8 +197,8 @@ final class IfLetReducerTests: BaseTCATestCase {
       await store.send(.child(.grandChild(.timerButtonTapped)))
       await clock.advance(by: .seconds(1))
       await store.receive(.child(.grandChild(.timerTick))) {
-        try (/.some).modify(&$0.child) {
-          try (/.some).modify(&$0.grandChild) {
+        XCTModify(&$0.child) {
+          XCTModify(&$0.grandChild) {
             $0.count = 1
           }
         }
@@ -204,6 +209,7 @@ final class IfLetReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testEphemeralState() async {
     if #available(iOS 16, macOS 13, tvOS 16, watchOS 9, *) {
       struct Parent: Reducer {
@@ -241,6 +247,7 @@ final class IfLetReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testIdentifiableChild() async {
     struct Feature: Reducer {
       struct State: Equatable {
@@ -275,17 +282,18 @@ final class IfLetReducerTests: BaseTCATestCase {
         case response(Int)
       }
       @Dependency(\.mainQueue) var mainQueue
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-
-        case .tap:
-          return .run { [id = state.id] send in
-            try await mainQueue.sleep(for: .seconds(0))
-            await send(.response(id))
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .tap:
+            return .run { [id = state.id] send in
+              try await mainQueue.sleep(for: .seconds(0))
+              await send(.response(id))
+            }
+          case let .response(value):
+            state.value = value
+            return .none
           }
-        case let .response(value):
-          state.value = value
-          return .none
         }
       }
     }
@@ -308,6 +316,7 @@ final class IfLetReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testEphemeralDismissal() async {
     struct Feature: Reducer {
       struct State: Equatable {

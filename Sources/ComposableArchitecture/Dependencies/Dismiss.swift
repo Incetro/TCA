@@ -15,26 +15,29 @@ extension DependencyValues {
 /// Execute this in the effect returned from a reducer in order to dismiss the feature:
 ///
 /// ```swift
-/// struct ChildFeature: Reducer {
+/// @Reducer
+/// struct ChildFeature {
 ///   struct State { /* ... */ }
 ///   enum Action {
 ///     case exitButtonTapped
 ///     // ...
 ///   }
 ///   @Dependency(\.dismiss) var dismiss
-///   func reduce(into state: inout State, action: Action) -> Effect<Action> {
-///     switch action {
-///     case .exitButtonTapped:
-///       return .run { _ in await self.dismiss() }
-///     // ...
+///   var body: some Reducer<State, Action> {
+///     Reduce { state, action in
+///       switch action {
+///       case .exitButtonTapped:
+///         return .run { _ in await self.dismiss() }
+///       // ...
+///       }
 ///     }
 ///   }
 /// }
 /// ```
 ///
 /// This operation works by finding the nearest parent feature that was presented using either the
-/// ``Reducer/ifLet(_:action:destination:fileID:line:)`` or the
-/// ``Reducer/forEach(_:action:destination:fileID:line:)`` operator, and then dismisses _that_
+/// ``Reducer/ifLet(_:action:destination:fileID:line:)-4k9by`` or the
+/// ``Reducer/forEach(_:action:destination:fileID:line:)-582rd`` operator, and then dismisses _that_
 /// feature. It performs the dismissal by either sending the ``PresentationAction/dismiss`` in the
 /// case of `ifLet` or sending ``StackAction/popFrom(id:)`` in the case of `forEach`.
 ///
@@ -78,29 +81,47 @@ public struct DismissEffect: Sendable {
   @MainActor
   public func callAsFunction(
     fileID: StaticString = #fileID,
-    line: UInt = #line
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
   ) async {
-    await self.callAsFunction(animation: nil, fileID: fileID, line: line)
+    await self.callAsFunction(
+      animation: nil,
+      fileID: fileID,
+      filePath: filePath,
+      line: line,
+      column: column
+    )
   }
 
   @MainActor
   public func callAsFunction(
     animation: Animation?,
     fileID: StaticString = #fileID,
-    line: UInt = #line
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
   ) async {
-    await callAsFunction(transaction: Transaction(animation: animation), fileID: fileID, line: line)
+    await callAsFunction(
+      transaction: Transaction(animation: animation),
+      fileID: fileID,
+      filePath: filePath,
+      line: line,
+      column: column
+    )
   }
 
   @MainActor
   public func callAsFunction(
     transaction: Transaction,
     fileID: StaticString = #fileID,
-    line: UInt = #line
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
   ) async {
     guard let dismiss = self.dismiss
     else {
-      runtimeWarn(
+      reportIssue(
         """
         A reducer requested dismissal at "\(fileID):\(line)", but couldn't be dismissed. …
 
@@ -109,7 +130,11 @@ public struct DismissEffect: Sendable {
         of an application, as well as in a presentation destination, use \
         @Dependency(\\.isPresented) to determine if the reducer is being presented before calling \
         @Dependency(\\.dismiss).
-        """
+        """,
+        fileID: fileID,
+        filePath: filePath,
+        line: line,
+        column: column
       )
       return
     }

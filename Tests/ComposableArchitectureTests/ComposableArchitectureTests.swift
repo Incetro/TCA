@@ -3,10 +3,8 @@ import CombineSchedulers
 import ComposableArchitecture
 import XCTest
 
-@MainActor
 final class ComposableArchitectureTests: BaseTCATestCase {
-  var cancellables: Set<AnyCancellable> = []
-
+  @MainActor
   func testScheduling() async {
     struct Counter: Reducer {
       typealias State = Int
@@ -16,31 +14,33 @@ final class ComposableArchitectureTests: BaseTCATestCase {
         case squareNow
       }
       @Dependency(\.mainQueue) var mainQueue
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .incrAndSquareLater:
-          return .run { send in
-            await withThrowingTaskGroup(of: Void.self) { group in
-              group.addTask {
-                try await self.mainQueue.sleep(for: .seconds(2))
-                await send(.incrNow)
-              }
-              group.addTask {
-                try await self.mainQueue.sleep(for: .seconds(1))
-                await send(.squareNow)
-              }
-              group.addTask {
-                try await self.mainQueue.sleep(for: .seconds(2))
-                await send(.squareNow)
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .incrAndSquareLater:
+            return .run { send in
+              await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                  try await self.mainQueue.sleep(for: .seconds(2))
+                  await send(.incrNow)
+                }
+                group.addTask {
+                  try await self.mainQueue.sleep(for: .seconds(1))
+                  await send(.squareNow)
+                }
+                group.addTask {
+                  try await self.mainQueue.sleep(for: .seconds(2))
+                  await send(.squareNow)
+                }
               }
             }
+          case .incrNow:
+            state += 1
+            return .none
+          case .squareNow:
+            state *= state
+            return .none
           }
-        case .incrNow:
-          state += 1
-          return .none
-        case .squareNow:
-          state *= state
-          return .none
         }
       }
     }
@@ -67,14 +67,18 @@ final class ComposableArchitectureTests: BaseTCATestCase {
     await store.receive(.squareNow) { $0 = 391876 }
   }
 
+  @MainActor
   func testSimultaneousWorkOrdering() {
+    var cancellables: Set<AnyCancellable> = []
+    defer { _ = cancellables }
+
     let mainQueue = DispatchQueue.test
 
     var values: [Int] = []
     mainQueue.schedule(after: mainQueue.now, interval: 1) { values.append(1) }
-      .store(in: &self.cancellables)
+      .store(in: &cancellables)
     mainQueue.schedule(after: mainQueue.now, interval: 2) { values.append(42) }
-      .store(in: &self.cancellables)
+      .store(in: &cancellables)
 
     XCTAssertEqual(values, [])
     mainQueue.advance()
@@ -83,6 +87,7 @@ final class ComposableArchitectureTests: BaseTCATestCase {
     XCTAssertEqual(values, [1, 42, 1, 1, 42])
   }
 
+  @MainActor
   func testLongLivingEffects() async {
     enum Action { case end, incr, start }
 
@@ -115,6 +120,7 @@ final class ComposableArchitectureTests: BaseTCATestCase {
     await store.send(.end)
   }
 
+  @MainActor
   func testCancellation() async {
     let mainQueue = DispatchQueue.test
 

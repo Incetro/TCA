@@ -72,99 +72,170 @@ struct IntegrationApp: App {
 struct ContentView: View {
   @State var isBindingLocalTestCasePresented = false
   @State var isNavigationStackTestCasePresented = false
-  @State var isNavigationStackBindingTestCasePresented = false
   @State var isNavigationTestCasePresented = false
+  @State var isObservableBindingLocalTestCasePresented = false
+  @State var isObservableNavigationTestCasePresented = false
 
   var body: some View {
     NavigationStack {
       List {
-        Section {
-          NavigationLink("Basics") {
-            Form {
-              BasicsView()
+        NavigationLink("iOS 17") {
+          List {
+            Section {
+              NavigationLink("Basics") {
+                Form {
+                  ObservableBasicsView(showExtraButtons: true)
+                }
+              }
+              Button("Binding local") {
+                self.isObservableBindingLocalTestCasePresented.toggle()
+              }
+              .sheet(isPresented: self.$isObservableBindingLocalTestCasePresented) {
+                ObservableBindingLocalTestCaseView()
+              }
+              NavigationLink("Enum") {
+                ObservableEnumView()
+              }
+              NavigationLink("Optional") {
+                ObservableOptionalView()
+              }
+              NavigationLink("Identified list") {
+                ObservableIdentifiedListView()
+              }
+              Button("Navigation") {
+                self.isObservableNavigationTestCasePresented = true
+              }
+              .sheet(isPresented: self.$isObservableNavigationTestCasePresented) {
+                ObservableNavigationTestCaseView()
+              }
+              NavigationLink("Shared state") {
+                ObservableSharedStateView()
+              }
+              NavigationLink("Siblings") {
+                ObservableSiblingFeaturesView()
+              }
+              NavigationLink("Presentation") {
+                ObservablePresentationView()
+              }
             }
           }
-          NavigationLink("Enum") {
-            EnumView()
-          }
-          NavigationLink("Optional") {
-            OptionalView()
-          }
-          NavigationLink("Identified list") {
-            IdentifiedListView()
-          }
-          Button("Navigation") {
-            self.isNavigationTestCasePresented = true
-          }
-          .sheet(isPresented: self.$isNavigationTestCasePresented) {
-            NavigationTestCaseView()
-          }
-          NavigationLink("Siblings") {
-            SiblingFeaturesView()
-          }
-          NavigationLink("Presentation") {
-            PresentationView()
-          }
+          .navigationTitle("iOS 17")
         }
 
-        Section {
-          ForEach(TestCase.allCases) { test in
-            switch test {
-            case .escapedWithViewStore:
-              NavigationLink(test.rawValue) {
-                EscapedWithViewStoreTestCaseView()
-              }
+        NavigationLink("iOS 16 + 17") {
+          List {
+            NavigationLink("New containing old") {
+              NewContainsOldTestCase()
+            }
+            NavigationLink("Siblings") {
+              NewOldSiblingsView()
+            }
+            NavigationLink("New presents old") {
+              NewPresentsOldTestCase()
+            }
+            NavigationLink("Old containing new") {
+              OldContainsNewTestCase()
+            }
+            NavigationLink("Old presents new") {
+              OldPresentsNewTestCase()
+            }
+          }
+          .navigationTitle(Text("iOS 16 + 17"))
+        }
 
-            case .forEachBinding:
-              NavigationLink(test.rawValue) {
-                ForEachBindingTestCaseView()
+        NavigationLink("iOS 16") {
+          List {
+            Section {
+              NavigationLink("Basics") {
+                Form {
+                  BasicsView(
+                    store: Store(initialState: BasicsView.Feature.State()) {
+                      BasicsView.Feature()
+                    }
+                  )
+                }
               }
-
-            case .navigationStack:
-              Button(test.rawValue) {
-                self.isNavigationStackTestCasePresented = true
+              NavigationLink("Enum") {
+                EnumView()
               }
-              .foregroundColor(.black)
-              .sheet(isPresented: self.$isNavigationStackTestCasePresented) {
-                NavigationStackTestCaseView()
+              NavigationLink("Optional") {
+                OptionalView()
               }
-
-            case .navigationStackBinding:
-              Button(test.rawValue) {
-                self.isNavigationStackBindingTestCasePresented = true
+              NavigationLink("Identified list") {
+                IdentifiedListView()
               }
-              .foregroundColor(.black)
-              .sheet(isPresented: self.$isNavigationStackBindingTestCasePresented) {
-                NavigationStackBindingTestCaseView()
+              Button("Navigation") {
+                self.isNavigationTestCasePresented = true
               }
-
-            case .presentation:
-              NavigationLink(test.rawValue) {
-                PresentationTestCaseView()
+              .sheet(isPresented: self.$isNavigationTestCasePresented) {
+                NavigationTestCaseView()
               }
-
-            case .presentationItem:
-              NavigationLink(test.rawValue) {
-                PresentationItemTestCaseView()
+              NavigationLink("Siblings") {
+                SiblingFeaturesView()
               }
-
-            case .switchStore:
-              NavigationLink(test.rawValue) {
-                SwitchStoreTestCaseView()
-              }
-
-            case .bindingLocal:
-              Button(test.rawValue) {
-                self.isBindingLocalTestCasePresented = true
-              }
-              .foregroundColor(.black)
-              .sheet(isPresented: self.$isBindingLocalTestCasePresented) {
-                BindingLocalTestCaseView()
+              NavigationLink("Presentation") {
+                PresentationView()
               }
             }
           }
-        } header: {
-          Text("Legacy")
+          .navigationTitle(Text("iOS 16"))
+        }
+
+        NavigationLink("Legacy") {
+          List {
+            ForEach(TestCase.allCases) { test in
+              switch test {
+              case .escapedWithViewStore:
+                NavigationLink(test.rawValue) {
+                  EscapedWithViewStoreTestCaseView()
+                }
+
+              case .ifLetStore:
+                NavigationLink(test.rawValue) {
+                  IfLetStoreTestCase()
+                }
+
+              case .forEachBinding:
+                NavigationLink(test.rawValue) {
+                  ForEachBindingTestCaseView()
+                }
+
+              case .navigationStack:
+                Button(test.rawValue) {
+                  self.isNavigationStackTestCasePresented = true
+                }
+                .foregroundColor(.black)
+                .sheet(isPresented: self.$isNavigationStackTestCasePresented) {
+                  NavigationStackTestCaseView()
+                }
+
+              case .presentation:
+                NavigationLink(test.rawValue) {
+                  PresentationTestCaseView()
+                }
+
+              case .presentationItem:
+                NavigationLink(test.rawValue) {
+                  PresentationItemTestCaseView()
+                }
+
+              case .switchStore:
+                NavigationLink(test.rawValue) {
+                  SwitchStoreTestCaseView()
+                }
+
+              case .bindingLocal:
+                Button(test.rawValue) {
+                  self.isBindingLocalTestCasePresented = true
+                }
+                .foregroundColor(.black)
+                .sheet(isPresented: self.$isBindingLocalTestCasePresented) {
+                  BindingLocalTestCaseView()
+                }
+              }
+            }
+          }
+          .navigationTitle(Text("Legacy"))
         }
 
         Section {
@@ -208,7 +279,7 @@ struct RuntimeWarnings: View {
         .transition(.opacity.animation(.default))
       }
     }
-    .onReceive(NotificationCenter.default.publisher(for: .runtimeWarning)) { notification in
+    .onReceive(NotificationCenter.default.publisher(for: ._runtimeWarning)) { notification in
       if let message = notification.userInfo?["message"] as? String {
         self.runtimeWarnings.append(message)
       }
@@ -216,12 +287,10 @@ struct RuntimeWarnings: View {
   }
 }
 
-struct ContentView_Previews: PreviewProvider {
-  static var previews: some View {
-    ContentView()
-  }
-}
-
 extension Notification.Name {
   static let clearLogs = Self("clear-logs")
+}
+
+#Preview {
+  ContentView()
 }

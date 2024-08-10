@@ -1,20 +1,20 @@
-import Combine
 import ComposableArchitecture
-import SwiftUI
 import UIKit
 
-struct CounterList: Reducer {
+@Reducer
+struct CounterList {
+  @ObservableState
   struct State: Equatable {
     var counters: IdentifiedArrayOf<Counter.State> = []
   }
 
-  enum Action: Equatable {
-    case counter(id: Counter.State.ID, action: Counter.Action)
+  enum Action {
+    case counters(IdentifiedActionOf<Counter>)
   }
 
   var body: some Reducer<State, Action> {
     EmptyReducer()
-      .forEach(\.counters, action: /Action.counter) {
+      .forEach(\.counters, action: \.counters) {
         Counter()
       }
   }
@@ -23,13 +23,12 @@ struct CounterList: Reducer {
 let cellIdentifier = "Cell"
 
 final class CountersTableViewController: UITableViewController {
-  let store: StoreOf<CounterList>
-  let viewStore: ViewStoreOf<CounterList>
-  var cancellables: Set<AnyCancellable> = []
+  private let store: StoreOf<CounterList>
+
+  var observations: [IndexPath: ObservationToken] = [:]
 
   init(store: StoreOf<CounterList>) {
     self.store = store
-    self.viewStore = ViewStore(store, observe: { $0 })
     super.init(nibName: nil, bundle: nil)
   }
 
@@ -40,17 +39,13 @@ final class CountersTableViewController: UITableViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.title = "Lists"
+    title = "Lists"
 
-    self.tableView.register(UITableViewCell.self, forCellReuseIdentifier: cellIdentifier)
-
-    self.viewStore.publisher.counters
-      .sink(receiveValue: { [weak self] _ in self?.tableView.reloadData() })
-      .store(in: &self.cancellables)
+    tableView.register(UITableViewCell.self, forCellReuseIdentifier: cellIdentifier)
   }
 
   override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    self.viewStore.counters.count
+    store.counters.count
   }
 
   override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath)
@@ -58,42 +53,36 @@ final class CountersTableViewController: UITableViewController {
   {
     let cell = tableView.dequeueReusableCell(withIdentifier: cellIdentifier, for: indexPath)
     cell.accessoryType = .disclosureIndicator
-    cell.textLabel?.text = "\(self.viewStore.counters[indexPath.row].count)"
+    observations[indexPath]?.cancel()
+    observations[indexPath] = observe { [weak self] in
+      guard let self else { return }
+      cell.textLabel?.text = "\(store.counters[indexPath.row].count)"
+    }
     return cell
   }
 
   override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-    let indexPathRow = indexPath.row
-    let counter = self.viewStore.counters[indexPathRow]
-    self.navigationController?.pushViewController(
-      CounterViewController(
-        store: self.store.scope(
-          state: \.counters[indexPathRow],
-          action: { .counter(id: counter.id, action: $0) }
-        )
-      ),
-      animated: true
-    )
+    let id = store.counters[indexPath.row].id
+    if let store = store.scope(state: \.counters[id:id], action: \.counters[id:id]) {
+      navigationController?.pushViewController(CounterViewController(store: store), animated: true)
+    }
   }
 }
 
-struct CountersTableViewController_Previews: PreviewProvider {
-  static var previews: some View {
-    let vc = UINavigationController(
-      rootViewController: CountersTableViewController(
-        store: Store(
-          initialState: CounterList.State(
-            counters: [
-              Counter.State(),
-              Counter.State(),
-              Counter.State(),
-            ]
-          )
-        ) {
-          CounterList()
-        }
-      )
+#Preview {
+  UINavigationController(
+    rootViewController: CountersTableViewController(
+      store: Store(
+        initialState: CounterList.State(
+          counters: [
+            Counter.State(),
+            Counter.State(),
+            Counter.State(),
+          ]
+        )
+      ) {
+        CounterList()
+      }
     )
-    return UIViewRepresented(makeUIView: { _ in vc.view })
-  }
+  )
 }

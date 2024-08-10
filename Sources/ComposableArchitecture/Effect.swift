@@ -1,7 +1,6 @@
 import Combine
 import Foundation
 import SwiftUI
-import XCTestDynamicOverlay
 
 public struct Effect<Action> {
   @usableFromInline
@@ -86,7 +85,9 @@ extension Effect {
     operation: @escaping @Sendable (_ send: Send<Action>) async throws -> Void,
     catch handler: (@Sendable (_ error: Error, _ send: Send<Action>) async -> Void)? = nil,
     fileID: StaticString = #fileID,
-    line: UInt = #line
+    filePath: StaticString = #filePath,
+    line: UInt = #line,
+    column: UInt = #column
   ) -> Self {
     withEscapedDependencies { escaped in
       Self(
@@ -97,21 +98,21 @@ extension Effect {
             } catch is CancellationError {
               return
             } catch {
-              guard let handler = handler else {
-                #if DEBUG
-                  var errorDump = ""
-                  customDump(error, to: &errorDump, indent: 4)
-                  runtimeWarn(
-                    """
-                    An "Effect.run" returned from "\(fileID):\(line)" threw an unhandled error. …
+              guard let handler else {
+                reportIssue(
+                  """
+                  An "Effect.run" returned from "\(fileID):\(line)" threw an unhandled error. …
 
-                    \(errorDump)
+                  \(String(customDumping: error).indent(by: 4))
 
-                    All non-cancellation errors must be explicitly handled via the "catch" parameter \
-                    on "Effect.run", or via a "do" block.
-                    """
-                  )
-                #endif
+                  All non-cancellation errors must be explicitly handled via the "catch" parameter \
+                  on "Effect.run", or via a "do" block.
+                  """,
+                  fileID: fileID,
+                  filePath: filePath,
+                  line: line,
+                  column: column
+                )
                 return
               }
               await handler(error, send)
@@ -236,7 +237,7 @@ extension Effect {
   /// - Parameter effects: A sequence of effects.
   /// - Returns: A new effect
   @inlinable
-  public static func merge<S: Sequence>(_ effects: S) -> Self where S.Element == Self {
+  public static func merge(_ effects: some Sequence<Self>) -> Self {
     effects.reduce(.none) { $0.merge(with: $1) }
   }
 
@@ -293,7 +294,7 @@ extension Effect {
   /// - Parameter effects: A collection of effects.
   /// - Returns: A new effect
   @inlinable
-  public static func concatenate<C: Collection>(_ effects: C) -> Self where C.Element == Self {
+  public static func concatenate(_ effects: some Collection<Self>) -> Self {
     effects.reduce(.none) { $0.concatenate(with: $1) }
   }
 
@@ -324,12 +325,12 @@ extension Effect {
     case let (.run(lhsPriority, lhsOperation), .run(rhsPriority, rhsOperation)):
       return Self(
         operation: .run { send in
-          if let lhsPriority = lhsPriority {
+          if let lhsPriority {
             await Task(priority: lhsPriority) { await lhsOperation(send) }.cancellableValue
           } else {
             await lhsOperation(send)
           }
-          if let rhsPriority = rhsPriority {
+          if let rhsPriority {
             await Task(priority: rhsPriority) { await rhsOperation(send) }.cancellableValue
           } else {
             await rhsOperation(send)

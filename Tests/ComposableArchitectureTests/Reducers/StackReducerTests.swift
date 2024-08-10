@@ -1,8 +1,8 @@
 @_spi(Internals) import ComposableArchitecture
 import XCTest
 
-@MainActor
 final class StackReducerTests: BaseTCATestCase {
+  @MainActor
   func testStackStateSubscriptCase() {
     enum Element: Equatable {
       case int(Int)
@@ -17,35 +17,35 @@ final class StackReducerTests: BaseTCATestCase {
     XCTAssertTrue(stack.isEmpty)
   }
 
-  #if DEBUG
-    func testStackStateSubscriptCase_Unexpected() {
-      enum Element: Equatable {
-        case int(Int)
-        case text(String)
-      }
-
-      var stack = StackState<Element>([.int(42)])
-
-      XCTExpectFailure {
-        stack[id: 0, case: /Element.text]?.append("!")
-      } issueMatcher: {
-        $0.compactDescription == """
-          Can't modify unrelated case "int"
-          """
-      }
-
-      XCTExpectFailure {
-        stack[id: 0, case: /Element.text] = nil
-      } issueMatcher: {
-        $0.compactDescription == """
-          Can't modify unrelated case "int"
-          """
-      }
-
-      XCTAssertEqual(Array(stack), [.int(42)])
+  @MainActor
+  func testStackStateSubscriptCase_Unexpected() {
+    enum Element: Equatable {
+      case int(Int)
+      case text(String)
     }
-  #endif
 
+    var stack = StackState<Element>([.int(42)])
+
+    XCTExpectFailure {
+      stack[id: 0, case: /Element.text]?.append("!")
+    } issueMatcher: {
+      $0.compactDescription == """
+        failed - Can't modify unrelated case "int"
+        """
+    }
+
+    XCTExpectFailure {
+      stack[id: 0, case: /Element.text] = nil
+    } issueMatcher: {
+      $0.compactDescription == """
+        failed - Can't modify unrelated case "int"
+        """
+    }
+
+    XCTAssertEqual(Array(stack), [.int(42)])
+  }
+
+  @MainActor
   func testCustomDebugStringConvertible() {
     @Dependency(\.stackElementID) var stackElementID
     XCTAssertEqual(stackElementID.peek().generation, 0)
@@ -61,6 +61,7 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPresent() async {
     struct Child: Reducer {
       struct State: Equatable {
@@ -70,14 +71,16 @@ final class StackReducerTests: BaseTCATestCase {
         case decrementButtonTapped
         case incrementButtonTapped
       }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .decrementButtonTapped:
-          state.count -= 1
-          return .none
-        case .incrementButtonTapped:
-          state.count += 1
-          return .none
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .decrementButtonTapped:
+            state.count -= 1
+            return .none
+          case .incrementButtonTapped:
+            state.count += 1
+            return .none
+          }
         }
       }
     }
@@ -86,7 +89,7 @@ final class StackReducerTests: BaseTCATestCase {
         var children = StackState<Child.State>()
       }
       enum Action: Equatable {
-        case children(StackAction<Child.State, Child.Action>)
+        case children(StackActionOf<Child>)
         case pushChild
       }
       var body: some ReducerOf<Self> {
@@ -114,17 +117,20 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testDismissFromParent() async {
     struct Child: Reducer {
       struct State: Equatable {}
       enum Action: Equatable {
         case onAppear
       }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .onAppear:
-          return .run { _ in
-            try await Task.never()
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .onAppear:
+            return .run { _ in
+              try await Task.never()
+            }
           }
         }
       }
@@ -134,7 +140,7 @@ final class StackReducerTests: BaseTCATestCase {
         var children = StackState<Child.State>()
       }
       enum Action: Equatable {
-        case children(StackAction<Child.State, Child.Action>)
+        case children(StackActionOf<Child>)
         case popChild
         case pushChild
       }
@@ -170,6 +176,7 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testDismissFromChild() async {
     struct Child: Reducer {
       struct State: Equatable {}
@@ -178,15 +185,17 @@ final class StackReducerTests: BaseTCATestCase {
         case onAppear
       }
       @Dependency(\.dismiss) var dismiss
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .closeButtonTapped:
-          return .run { _ in
-            await self.dismiss()
-          }
-        case .onAppear:
-          return .run { _ in
-            try await Task.never()
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .closeButtonTapped:
+            return .run { _ in
+              await self.dismiss()
+            }
+          case .onAppear:
+            return .run { _ in
+              try await Task.never()
+            }
           }
         }
       }
@@ -196,7 +205,7 @@ final class StackReducerTests: BaseTCATestCase {
         var children = StackState<Child.State>()
       }
       enum Action: Equatable {
-        case children(StackAction<Child.State, Child.Action>)
+        case children(StackActionOf<Child>)
         case pushChild
       }
       var body: some ReducerOf<Self> {
@@ -229,52 +238,54 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
-  #if DEBUG
-    func testDismissReceiveWrongAction() async {
-      struct Child: Reducer {
-        struct State: Equatable {}
-        enum Action: Equatable { case tap }
-        @Dependency(\.dismiss) var dismiss
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {
+  @MainActor
+  func testDismissReceiveWrongAction() async {
+    struct Child: Reducer {
+      struct State: Equatable {}
+      enum Action: Equatable { case tap }
+      @Dependency(\.dismiss) var dismiss
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
           .run { _ in await self.dismiss() }
         }
       }
-      struct Parent: Reducer {
-        struct State: Equatable {
-          var children = StackState<Child.State>()
-        }
-        enum Action: Equatable {
-          case children(StackAction<Child.State, Child.Action>)
-        }
-        var body: some ReducerOf<Self> {
-          Reduce { _, _ in .none }.forEach(\.children, action: /Action.children) { Child() }
-        }
+    }
+    struct Parent: Reducer {
+      struct State: Equatable {
+        var children = StackState<Child.State>()
       }
-
-      let store = TestStore(initialState: Parent.State(children: StackState([Child.State()]))) {
-        Parent()
+      enum Action: Equatable {
+        case children(StackActionOf<Child>)
       }
-
-      XCTExpectFailure {
-        $0.compactDescription == """
-          Received unexpected action: …
-
-                StackReducerTests.Parent.Action.children(
-              −   .popFrom(id: #1)
-              +   .popFrom(id: #0)
-                )
-
-          (Expected: −, Received: +)
-          """
-      }
-
-      await store.send(.children(.element(id: 0, action: .tap)))
-      await store.receive(.children(.popFrom(id: 1))) {
-        $0.children = StackState()
+      var body: some ReducerOf<Self> {
+        Reduce { _, _ in .none }.forEach(\.children, action: /Action.children) { Child() }
       }
     }
-  #endif
 
+    let store = TestStore(initialState: Parent.State(children: StackState([Child.State()]))) {
+      Parent()
+    }
+
+    XCTExpectFailure {
+      $0.compactDescription == """
+        failed - Received unexpected action: …
+
+              StackReducerTests.Parent.Action.children(
+            −   .popFrom(id: #1)
+            +   .popFrom(id: #0)
+              )
+
+        (Expected: −, Received: +)
+        """
+    }
+
+    await store.send(.children(.element(id: 0, action: .tap)))
+    await store.receive(.children(.popFrom(id: 1))) {
+      $0.children = StackState()
+    }
+  }
+
+  @MainActor
   func testDismissFromIntermediateChild() async {
     struct Child: Reducer {
       struct State: Equatable { var count = 0 }
@@ -283,12 +294,14 @@ final class StackReducerTests: BaseTCATestCase {
       }
       @Dependency(\.dismiss) var dismiss
       @Dependency(\.mainQueue) var mainQueue
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .onAppear:
-          return .run { [count = state.count] _ in
-            try await self.mainQueue.sleep(for: .seconds(count))
-            await self.dismiss()
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .onAppear:
+            return .run { [count = state.count] _ in
+              try await self.mainQueue.sleep(for: .seconds(count))
+              await self.dismiss()
+            }
           }
         }
       }
@@ -298,7 +311,7 @@ final class StackReducerTests: BaseTCATestCase {
         var children = StackState<Child.State>()
       }
       enum Action: Equatable {
-        case child(StackAction<Child.State, Child.Action>)
+        case child(StackActionOf<Child>)
       }
       var body: some ReducerOf<Self> {
         Reduce { _, _ in .none }
@@ -337,6 +350,7 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testDismissFromDeepLinkedChild() async {
     struct Child: Reducer {
       struct State: Equatable {}
@@ -344,11 +358,13 @@ final class StackReducerTests: BaseTCATestCase {
         case closeButtonTapped
       }
       @Dependency(\.dismiss) var dismiss
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .closeButtonTapped:
-          return .run { _ in
-            await self.dismiss()
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .closeButtonTapped:
+            return .run { _ in
+              await self.dismiss()
+            }
           }
         }
       }
@@ -358,7 +374,7 @@ final class StackReducerTests: BaseTCATestCase {
         var children = StackState<Child.State>()
       }
       enum Action: Equatable {
-        case children(StackAction<Child.State, Child.Action>)
+        case children(StackActionOf<Child>)
         case pushChild
       }
       var body: some ReducerOf<Self> {
@@ -389,6 +405,7 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testEnumChild() async {
     struct Child: Reducer {
       struct State: Equatable {
@@ -400,18 +417,20 @@ final class StackReducerTests: BaseTCATestCase {
         case onAppear
       }
       @Dependency(\.dismiss) var dismiss
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .closeButtonTapped:
-          return .run { _ in
-            await self.dismiss()
-          }
-        case .incrementButtonTapped:
-          state.count += 1
-          return .none
-        case .onAppear:
-          return .run { _ in
-            try await Task.never()
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .closeButtonTapped:
+            return .run { _ in
+              await self.dismiss()
+            }
+          case .incrementButtonTapped:
+            state.count += 1
+            return .none
+          case .onAppear:
+            return .run { _ in
+              try await Task.never()
+            }
           }
         }
       }
@@ -439,7 +458,7 @@ final class StackReducerTests: BaseTCATestCase {
         var path = StackState<Path.State>()
       }
       enum Action: Equatable {
-        case path(StackAction<Path.State, Path.Action>)
+        case path(StackActionOf<Path>)
         case pushChild1
         case pushChild2
       }
@@ -478,13 +497,16 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testParentDismiss() async {
     struct Child: Reducer {
       struct State: Equatable {}
       enum Action { case tap }
       @Dependency(\.dismiss) var dismiss
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        .run { _ in try await Task.never() }
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          .run { _ in try await Task.never() }
+        }
       }
     }
     struct Parent: Reducer {
@@ -492,7 +514,7 @@ final class StackReducerTests: BaseTCATestCase {
         var path = StackState<Child.State>()
       }
       enum Action {
-        case path(StackAction<Child.State, Child.Action>)
+        case path(StackActionOf<Child>)
         case popToRoot
         case pushChild
       }
@@ -531,8 +553,9 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
-  func testSiblingCannotCancel() async {
-    struct Child: Reducer {
+  enum TestSiblingCannotCancel {
+    @Reducer
+    struct Child {
       struct State: Equatable {
         var count = 0
       }
@@ -543,23 +566,26 @@ final class StackReducerTests: BaseTCATestCase {
       }
       @Dependency(\.mainQueue) var mainQueue
       enum CancelID: Hashable { case cancel }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .cancel:
-          return .cancel(id: CancelID.cancel)
-        case let .response(value):
-          state.count = value
-          return .none
-        case .tap:
-          return .run { send in
-            try await self.mainQueue.sleep(for: .seconds(1))
-            await send(.response(42))
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .cancel:
+            return .cancel(id: CancelID.cancel)
+          case let .response(value):
+            state.count = value
+            return .none
+          case .tap:
+            return .run { send in
+              try await self.mainQueue.sleep(for: .seconds(1))
+              await send(.response(42))
+            }
+            .cancellable(id: CancelID.cancel)
           }
-          .cancellable(id: CancelID.cancel)
         }
       }
     }
-    struct Path: Reducer {
+    @Reducer
+    struct Path {
       enum State: Equatable {
         case child1(Child.State)
         case child2(Child.State)
@@ -569,16 +595,17 @@ final class StackReducerTests: BaseTCATestCase {
         case child2(Child.Action)
       }
       var body: some ReducerOf<Self> {
-        Scope(state: /State.child1, action: /Action.child1) { Child() }
-        Scope(state: /State.child2, action: /Action.child2) { Child() }
+        Scope(state: \.child1, action: \.child1) { Child() }
+        Scope(state: \.child2, action: \.child2) { Child() }
       }
     }
-    struct Parent: Reducer {
+    @Reducer
+    struct Parent {
       struct State: Equatable {
         var path = StackState<Path.State>()
       }
       enum Action: Equatable {
-        case path(StackAction<Path.State, Path.Action>)
+        case path(StackActionOf<Path>)
         case pushChild1
         case pushChild2
       }
@@ -595,18 +622,20 @@ final class StackReducerTests: BaseTCATestCase {
             return .none
           }
         }
-        .forEach(\.path, action: /Action.path) {
+        .forEach(\.path, action: \.path) {
           Path()
         }
       }
     }
-
-    var path = StackState<Path.State>()
-    path.append(.child1(Child.State()))
-    path.append(.child2(Child.State()))
+  }
+  @MainActor
+  func testSiblingCannotCancel() async {
+    var path = StackState<TestSiblingCannotCancel.Path.State>()
+    path.append(.child1(TestSiblingCannotCancel.Child.State()))
+    path.append(.child2(TestSiblingCannotCancel.Child.State()))
     let mainQueue = DispatchQueue.test
-    let store = TestStore(initialState: Parent.State(path: path)) {
-      Parent()
+    let store = TestStore(initialState: TestSiblingCannotCancel.Parent.State(path: path)) {
+      TestSiblingCannotCancel.Parent()
     } withDependencies: {
       $0.mainQueue = mainQueue.eraseToAnyScheduler()
     }
@@ -616,7 +645,7 @@ final class StackReducerTests: BaseTCATestCase {
     await store.send(.path(.element(id: 0, action: .child1(.cancel))))
     await mainQueue.advance(by: .seconds(1))
     await store.receive(.path(.element(id: 1, action: .child2(.response(42))))) {
-      $0.path[id: 1, case: /Path.State.child2]?.count = 42
+      $0.path[id: 1, case: \.child2]?.count = 42
     }
 
     await store.send(.path(.element(id: 0, action: .child1(.tap))))
@@ -624,12 +653,13 @@ final class StackReducerTests: BaseTCATestCase {
     await store.send(.path(.element(id: 1, action: .child2(.cancel))))
     await mainQueue.advance(by: .seconds(1))
     await store.receive(.path(.element(id: 0, action: .child1(.response(42))))) {
-      $0.path[id: 0, case: /Path.State.child1]?.count = 42
+      $0.path[id: 0, case: \.child1]?.count = 42
     }
   }
 
-  func testFirstChildWhileEffectInFlight_DeliversToCorrectID() async {
-    struct Child: Reducer {
+  enum TestFirstChildWhileEffectInFlight_DeliversToCorrectID {
+    @Reducer
+    struct Child {
       let id: Int
       struct State: Equatable {
         var count = 0
@@ -639,20 +669,23 @@ final class StackReducerTests: BaseTCATestCase {
         case tap
       }
       @Dependency(\.mainQueue) var mainQueue
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case let .response(value):
-          state.count += value
-          return .none
-        case .tap:
-          return .run { send in
-            try await self.mainQueue.sleep(for: .seconds(self.id))
-            await send(.response(self.id))
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case let .response(value):
+            state.count += value
+            return .none
+          case .tap:
+            return .run { send in
+              try await self.mainQueue.sleep(for: .seconds(self.id))
+              await send(.response(self.id))
+            }
           }
         }
       }
     }
-    struct Path: Reducer {
+    @Reducer
+    struct Path {
       enum State: Equatable {
         case child1(Child.State)
         case child2(Child.State)
@@ -662,16 +695,17 @@ final class StackReducerTests: BaseTCATestCase {
         case child2(Child.Action)
       }
       var body: some ReducerOf<Self> {
-        Scope(state: /State.child1, action: /Action.child1) { Child(id: 1) }
-        Scope(state: /State.child2, action: /Action.child2) { Child(id: 2) }
+        Scope(state: \.child1, action: \.child1) { Child(id: 1) }
+        Scope(state: \.child2, action: \.child2) { Child(id: 2) }
       }
     }
-    struct Parent: Reducer {
+    @Reducer
+    struct Parent {
       struct State: Equatable {
         var path = StackState<Path.State>()
       }
       enum Action: Equatable {
-        case path(StackAction<Path.State, Path.Action>)
+        case path(StackActionOf<Path>)
         case popAll
         case popFirst
       }
@@ -688,22 +722,24 @@ final class StackReducerTests: BaseTCATestCase {
             return .none
           }
         }
-        .forEach(\.path, action: /Action.path) {
+        .forEach(\.path, action: \.path) {
           Path()
         }
       }
     }
-
+  }
+  @MainActor
+  func testFirstChildWhileEffectInFlight_DeliversToCorrectID() async {
     let mainQueue = DispatchQueue.test
     let store = TestStore(
-      initialState: Parent.State(
+      initialState: TestFirstChildWhileEffectInFlight_DeliversToCorrectID.Parent.State(
         path: StackState([
-          .child1(Child.State()),
-          .child2(Child.State()),
+          .child1(TestFirstChildWhileEffectInFlight_DeliversToCorrectID.Child.State()),
+          .child2(TestFirstChildWhileEffectInFlight_DeliversToCorrectID.Child.State()),
         ])
       )
     ) {
-      Parent()
+      TestFirstChildWhileEffectInFlight_DeliversToCorrectID.Parent()
     } withDependencies: {
       $0.mainQueue = mainQueue.eraseToAnyScheduler()
     }
@@ -712,11 +748,11 @@ final class StackReducerTests: BaseTCATestCase {
     await store.send(.path(.element(id: 1, action: .child2(.tap))))
     await mainQueue.advance(by: .seconds(1))
     await store.receive(.path(.element(id: 0, action: .child1(.response(1))))) {
-      $0.path[id: 0, case: /Path.State.child1]?.count = 1
+      $0.path[id: 0, case: \.child1]?.count = 1
     }
     await mainQueue.advance(by: .seconds(1))
     await store.receive(.path(.element(id: 1, action: .child2(.response(2))))) {
-      $0.path[id: 1, case: /Path.State.child2]?.count = 2
+      $0.path[id: 1, case: \.child2]?.count = 2
     }
 
     await store.send(.path(.element(id: 0, action: .child1(.tap))))
@@ -726,104 +762,105 @@ final class StackReducerTests: BaseTCATestCase {
     }
     await mainQueue.advance(by: .seconds(2))
     await store.receive(.path(.element(id: 1, action: .child2(.response(2))))) {
-      $0.path[id: 1, case: /Path.State.child2]?.count = 4
+      $0.path[id: 1, case: \.child2]?.count = 4
     }
     await store.send(.popFirst) {
       $0.path[id: 1] = nil
     }
   }
 
-  #if DEBUG
-    func testSendActionWithIDThatDoesNotExist() async {
-      struct Parent: Reducer {
-        struct State: Equatable {
-          var path = StackState<Int>()
-        }
-        enum Action {
-          case path(StackAction<Int, Void>)
-        }
-        var body: some ReducerOf<Self> {
-          EmptyReducer()
-            .forEach(\.path, action: /Action.path) {}
-        }
+  @MainActor
+  func testSendActionWithIDThatDoesNotExist() async {
+    struct Parent: Reducer {
+      struct State: Equatable {
+        var path = StackState<Int>()
       }
-      let line = #line - 3
-
-      XCTExpectFailure {
-        $0.compactDescription == """
-          A "forEach" at "ComposableArchitectureTests/StackReducerTests.swift:\(line)" received an \
-          action for a missing element. …
-
-            Action:
-              ()
-
-          This is generally considered an application logic error, and can happen for a few reasons:
-
-          • A parent reducer removed an element with this ID before this reducer ran. This reducer \
-          must run before any other reducer removes an element, which ensures that element \
-          reducers can handle their actions while their state is still available.
-
-          • An in-flight effect emitted this action when state contained no element at this ID. \
-          While it may be perfectly reasonable to ignore this action, consider canceling the \
-          associated effect before an element is removed, especially if it is a long-living effect.
-
-          • This action was sent to the store while its state contained no element at this ID. To \
-          fix this make sure that actions for this reducer can only be sent from a view store when \
-          its state contains an element at this id. In SwiftUI applications, use \
-          "NavigationStackStore".
-          """
+      enum Action {
+        case path(StackAction<Int, Void>)
       }
-
-      var path = StackState<Int>()
-      path.append(1)
-      let store = TestStore(initialState: Parent.State(path: path)) {
-        Parent()
+      var body: some ReducerOf<Self> {
+        EmptyReducer()
+          .forEach(\.path, action: /Action.path) {}
       }
-      await store.send(.path(.element(id: 999, action: ())))
     }
-  #endif
+    let line = #line - 3
 
-  #if DEBUG
-    func testPopIDThatDoesNotExist() async {
-      struct Parent: Reducer {
-        struct State: Equatable {
-          var path = StackState<Int>()
-        }
-        enum Action {
-          case path(StackAction<Int, Void>)
-        }
-        var body: some ReducerOf<Self> {
-          EmptyReducer()
-            .forEach(\.path, action: /Action.path) {}
-        }
-      }
-      let line = #line - 3
+    XCTExpectFailure {
+      $0.compactDescription == """
+        failed - A "forEach" at "ComposableArchitectureTests/StackReducerTests.swift:\(line)" \
+        received an action for a missing element. …
 
-      XCTExpectFailure {
-        $0.compactDescription == """
-          A "forEach" at "ComposableArchitectureTests/StackReducerTests.swift:\(line)" received a \
-          "popFrom" action for a missing element. …
+          Action:
+            ()
 
-            ID:
-              #999
-            Path IDs:
-              [#0]
-          """
-      }
+        This is generally considered an application logic error, and can happen for a few reasons:
 
-      let store = TestStore(initialState: Parent.State(path: StackState<Int>([1]))) {
-        Parent()
-      }
-      await store.send(.path(.popFrom(id: 999)))
+        • A parent reducer removed an element with this ID before this reducer ran. This reducer \
+        must run before any other reducer removes an element, which ensures that element \
+        reducers can handle their actions while their state is still available.
+
+        • An in-flight effect emitted this action when state contained no element at this ID. \
+        While it may be perfectly reasonable to ignore this action, consider canceling the \
+        associated effect before an element is removed, especially if it is a long-living effect.
+
+        • This action was sent to the store while its state contained no element at this ID. To \
+        fix this make sure that actions for this reducer can only be sent from a view store when \
+        its state contains an element at this id. In SwiftUI applications, use \
+        "NavigationStack.init(path:)" with a binding to a store.
+        """
     }
-  #endif
 
+    var path = StackState<Int>()
+    path.append(1)
+    let store = TestStore(initialState: Parent.State(path: path)) {
+      Parent()
+    }
+    await store.send(.path(.element(id: 999, action: ())))
+  }
+
+  @MainActor
+  func testPopIDThatDoesNotExist() async {
+    struct Parent: Reducer {
+      struct State: Equatable {
+        var path = StackState<Int>()
+      }
+      enum Action {
+        case path(StackAction<Int, Void>)
+      }
+      var body: some ReducerOf<Self> {
+        EmptyReducer()
+          .forEach(\.path, action: /Action.path) {}
+      }
+    }
+    let line = #line - 3
+
+    XCTExpectFailure {
+      $0.compactDescription == """
+        failed - A "forEach" at "ComposableArchitectureTests/StackReducerTests.swift:\(line)" \
+        received a "popFrom" action for a missing element. …
+
+          ID:
+            #999
+          Path IDs:
+            [#0]
+        """
+    }
+
+    let store = TestStore(initialState: Parent.State(path: StackState<Int>([1]))) {
+      Parent()
+    }
+    await store.send(.path(.popFrom(id: 999)))
+  }
+
+  @MainActor
   func testChildWithInFlightEffect() async {
     struct Child: Reducer {
       struct State: Equatable {}
       enum Action { case tap }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        .run { _ in try await Task.never() }
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          .run { _ in try await Task.never() }
+        }
       }
     }
     struct Parent: Reducer {
@@ -831,7 +868,7 @@ final class StackReducerTests: BaseTCATestCase {
         var path = StackState<Child.State>()
       }
       enum Action {
-        case path(StackAction<Child.State, Child.Action>)
+        case path(StackActionOf<Child>)
       }
       var body: some ReducerOf<Self> {
         EmptyReducer()
@@ -851,8 +888,8 @@ final class StackReducerTests: BaseTCATestCase {
       $0.sourceCodeContext.location?.fileURL.absoluteString.contains("BaseTCATestCase") == true
         || $0.sourceCodeContext.location?.lineNumber == line + 1
           && $0.compactDescription == """
-            An effect returned for this action is still running. It must complete before the end \
-            of the test. …
+            failed - An effect returned for this action is still running. It must complete before \
+            the end of the test. …
 
             To fix, inspect any effects the reducer returns for this action and ensure that all \
             of them complete by the end of the test. There are a few reasons why an effect may \
@@ -861,7 +898,7 @@ final class StackReducerTests: BaseTCATestCase {
             • If using async/await in your effect, it may need a little bit of time to properly \
             finish. To fix you can simply perform "await store.finish()" at the end of your test.
 
-            • If an effect uses a clock/scheduler (via "receive(on:)", "delay", "debounce", \
+            • If an effect uses a clock (or scheduler, via "receive(on:)", "delay", "debounce", \
             etc.), make sure that you wait enough time for it to perform the effect. If you are \
             using a test clock/scheduler, advance it so that the effects may complete, or \
             consider using an immediate clock/scheduler to immediately perform the effect instead.
@@ -870,10 +907,15 @@ final class StackReducerTests: BaseTCATestCase {
             then make sure those effects are torn down by marking the effect ".cancellable" and \
             returning a corresponding cancellation effect ("Effect.cancel") from another action, \
             or, if your effect is driven by a Combine subject, send it a completion.
+
+            • If you do not wish to assert on these effects, perform "await \
+            store.skipInFlightEffects()", or consider using a non-exhaustive test store: \
+            "store.exhaustivity = .off".
             """
     }
   }
 
+  @MainActor
   func testMultipleChildEffects() async {
     struct Child: Reducer {
       struct State: Equatable { var count = 0 }
@@ -882,16 +924,18 @@ final class StackReducerTests: BaseTCATestCase {
         case response(Int)
       }
       @Dependency(\.mainQueue) var mainQueue
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .tap:
-          return .run { [count = state.count] send in
-            try await self.mainQueue.sleep(for: .seconds(count))
-            await send(.response(42))
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          switch action {
+          case .tap:
+            return .run { [count = state.count] send in
+              try await self.mainQueue.sleep(for: .seconds(count))
+              await send(.response(42))
+            }
+          case let .response(value):
+            state.count = value
+            return .none
           }
-        case let .response(value):
-          state.count = value
-          return .none
         }
       }
     }
@@ -900,7 +944,7 @@ final class StackReducerTests: BaseTCATestCase {
         var children: StackState<Child.State>
       }
       enum Action: Equatable {
-        case child(StackAction<Child.State, Child.Action>)
+        case child(StackActionOf<Child>)
       }
       var body: some ReducerOf<Self> {
         Reduce { _, _ in .none }
@@ -934,12 +978,15 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testChildEffectCancellation() async {
     struct Child: Reducer {
       struct State: Equatable {}
       enum Action: Equatable { case tap }
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        .run { _ in try await Task.never() }
+      var body: some Reducer<State, Action> {
+        Reduce { state, action in
+          .run { _ in try await Task.never() }
+        }
       }
     }
     struct Parent: Reducer {
@@ -947,7 +994,7 @@ final class StackReducerTests: BaseTCATestCase {
         var children: StackState<Child.State>
       }
       enum Action: Equatable {
-        case child(StackAction<Child.State, Child.Action>)
+        case child(StackActionOf<Child>)
       }
       var body: some ReducerOf<Self> {
         Reduce { _, _ in .none }
@@ -971,18 +1018,21 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testPush() async {
     struct Child: Reducer {
       struct State: Equatable {}
       enum Action: Equatable {}
-      func reduce(into state: inout State, action: Action) -> Effect<Action> {}
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
+      }
     }
     struct Parent: Reducer {
       struct State: Equatable {
         var children = StackState<Child.State>()
       }
       enum Action: Equatable {
-        case child(StackAction<Child.State, Child.Action>)
+        case child(StackActionOf<Child>)
         case push
       }
       var body: some ReducerOf<Self> {
@@ -1023,134 +1073,140 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
-  #if DEBUG
-    func testPushReusedID() async {
-      struct Child: Reducer {
-        struct State: Equatable {}
-        enum Action: Equatable {}
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {}
-      }
-      struct Parent: Reducer {
-        struct State: Equatable {
-          var children = StackState<Child.State>()
-        }
-        enum Action: Equatable {
-          case child(StackAction<Child.State, Child.Action>)
-        }
-        var body: some ReducerOf<Self> {
-          Reduce { _, _ in .none }
-            .forEach(\.children, action: /Action.child) { Child() }
-        }
-      }
-      let line = #line - 3
-
-      let store = TestStore(initialState: Parent.State()) {
-        Parent()
-      }
-
-      XCTExpectFailure {
-        $0.compactDescription == """
-          A "forEach" at "ComposableArchitectureTests/StackReducerTests.swift:\(line)" received a \
-          "push" action for an element it already contains. …
-
-            ID:
-              #0
-            Path IDs:
-              [#0]
-          """
-      }
-
-      await store.send(.child(.push(id: 0, state: Child.State()))) {
-        $0.children[id: 0] = Child.State()
-      }
-      await store.send(.child(.push(id: 0, state: Child.State())))
-    }
-  #endif
-
-  #if DEBUG
-    func testPushIDGreaterThanNextGeneration() async {
-      struct Child: Reducer {
-        struct State: Equatable {}
-        enum Action: Equatable {}
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {}
-      }
-      struct Parent: Reducer {
-        struct State: Equatable {
-          var children = StackState<Child.State>()
-        }
-        enum Action: Equatable {
-          case child(StackAction<Child.State, Child.Action>)
-        }
-        var body: some ReducerOf<Self> {
-          Reduce { _, _ in .none }
-            .forEach(\.children, action: /Action.child) { Child() }
-        }
-      }
-      let line = #line - 3
-
-      let store = TestStore(initialState: Parent.State()) {
-        Parent()
-      }
-
-      XCTExpectFailure {
-        $0.compactDescription == """
-          A "forEach" at "ComposableArchitectureTests/StackReducerTests.swift:\(line)" received a \
-          "push" action with an unexpected generational ID. …
-
-            Received ID:
-              #1
-            Expected ID:
-              #0
-          """
-      }
-
-      await store.send(.child(.push(id: 1, state: Child.State()))) {
-        $0.children[id: 1] = Child.State()
+  @MainActor
+  func testPushReusedID() async {
+    struct Child: Reducer {
+      struct State: Equatable {}
+      enum Action: Equatable {}
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
       }
     }
-
-    func testMismatchedIDFailure() async {
-      struct Child: Reducer {
-        struct State: Equatable {}
-        enum Action: Equatable {}
-        func reduce(into state: inout State, action: Action) -> Effect<Action> {}
+    struct Parent: Reducer {
+      struct State: Equatable {
+        var children = StackState<Child.State>()
       }
-      struct Parent: Reducer {
-        struct State: Equatable {
-          var children = StackState<Child.State>()
-        }
-        enum Action: Equatable {
-          case child(StackAction<Child.State, Child.Action>)
-        }
-        var body: some ReducerOf<Self> {
-          Reduce { _, _ in .none }.forEach(\.children, action: /Action.child) { Child() }
-        }
+      enum Action: Equatable {
+        case child(StackActionOf<Child>)
       }
-
-      let store = TestStore(initialState: Parent.State()) {
-        Parent()
-      }
-
-      XCTExpectFailure {
-        $0.compactDescription == """
-          A state change does not match expectation: …
-
-                StackReducerTests.Parent.State(
-                  children: [
-              −     #1: StackReducerTests.Child.State()
-              +     #0: StackReducerTests.Child.State()
-                  ]
-                )
-
-          (Expected: −, Actual: +)
-          """
-      }
-      await store.send(.child(.push(id: 0, state: Child.State()))) {
-        $0.children[id: 1] = Child.State()
+      var body: some ReducerOf<Self> {
+        Reduce { _, _ in .none }
+          .forEach(\.children, action: /Action.child) { Child() }
       }
     }
-  #endif
+    let line = #line - 3
 
+    let store = TestStore(initialState: Parent.State()) {
+      Parent()
+    }
+
+    XCTExpectFailure {
+      $0.compactDescription == """
+        failed - A "forEach" at "ComposableArchitectureTests/StackReducerTests.swift:\(line)" \
+        received a "push" action for an element it already contains. …
+
+          ID:
+            #0
+          Path IDs:
+            [#0]
+        """
+    }
+
+    await store.send(.child(.push(id: 0, state: Child.State()))) {
+      $0.children[id: 0] = Child.State()
+    }
+    await store.send(.child(.push(id: 0, state: Child.State())))
+  }
+
+  @MainActor
+  func testPushIDGreaterThanNextGeneration() async {
+    struct Child: Reducer {
+      struct State: Equatable {}
+      enum Action: Equatable {}
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
+      }
+    }
+    struct Parent: Reducer {
+      struct State: Equatable {
+        var children = StackState<Child.State>()
+      }
+      enum Action: Equatable {
+        case child(StackActionOf<Child>)
+      }
+      var body: some ReducerOf<Self> {
+        Reduce { _, _ in .none }
+          .forEach(\.children, action: /Action.child) { Child() }
+      }
+    }
+    let line = #line - 3
+
+    let store = TestStore(initialState: Parent.State()) {
+      Parent()
+    }
+
+    XCTExpectFailure {
+      $0.compactDescription == """
+        failed - A "forEach" at "ComposableArchitectureTests/StackReducerTests.swift:\(line)" \
+        received a "push" action with an unexpected generational ID. …
+
+          Received ID:
+            #1
+          Expected ID:
+            #0
+        """
+    }
+
+    await store.send(.child(.push(id: 1, state: Child.State()))) {
+      $0.children[id: 1] = Child.State()
+    }
+  }
+
+  @MainActor
+  func testMismatchedIDFailure() async {
+    struct Child: Reducer {
+      struct State: Equatable {}
+      enum Action: Equatable {}
+      var body: some Reducer<State, Action> {
+        EmptyReducer()
+      }
+    }
+    struct Parent: Reducer {
+      struct State: Equatable {
+        var children = StackState<Child.State>()
+      }
+      enum Action: Equatable {
+        case child(StackActionOf<Child>)
+      }
+      var body: some ReducerOf<Self> {
+        Reduce { _, _ in .none }.forEach(\.children, action: /Action.child) { Child() }
+      }
+    }
+
+    let store = TestStore(initialState: Parent.State()) {
+      Parent()
+    }
+
+    XCTExpectFailure {
+      $0.compactDescription == """
+        failed - A state change does not match expectation: …
+
+              StackReducerTests.Parent.State(
+                children: [
+            −     #1: StackReducerTests.Child.State()
+            +     #0: StackReducerTests.Child.State()
+                ]
+              )
+
+        (Expected: −, Actual: +)
+        """
+    }
+    await store.send(.child(.push(id: 0, state: Child.State()))) {
+      $0.children[id: 1] = Child.State()
+    }
+  }
+
+  @MainActor
   func testSendCopiesStackElementIDGenerator() async {
     struct Feature: Reducer {
       struct State: Equatable {
@@ -1204,6 +1260,7 @@ final class StackReducerTests: BaseTCATestCase {
     }
   }
 
+  @MainActor
   func testOuterCancellation() async {
     struct Child: Reducer {
       struct State: Equatable {}
@@ -1222,7 +1279,7 @@ final class StackReducerTests: BaseTCATestCase {
         var children = StackState<Child.State>()
       }
       enum Action: Equatable {
-        case children(StackAction<Child.State, Child.Action>)
+        case children(StackActionOf<Child>)
         case tapAfter
         case tapBefore
       }

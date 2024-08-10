@@ -3,34 +3,48 @@
 import ComposableArchitecture
 import XCTest
 
-private struct Test: Reducer {
+@Reducer
+private struct Test {
   struct State {}
   enum Action { case tap }
 
-  func reduce(into state: inout State, action: Action) -> Effect<Action> {
-    .none
+  var body: some Reducer<State, Action> {
+    EmptyReducer()
   }
 
   @available(iOS, introduced: 9999)
-  struct Unavailable: Reducer {
-    func reduce(into state: inout State, action: Action) -> Effect<Action> {
-      .none
+  @available(macOS, introduced: 9999)
+  @available(tvOS, introduced: 9999)
+  @available(visionOS, introduced: 9999)
+  @available(watchOS, introduced: 9999)
+  @Reducer
+  struct Unavailable {
+    var body: some Reducer<State, Action> {
+      EmptyReducer()
     }
+  }
+}
+
+func testExistentialReducers() {
+  _ = CombineReducers {
+    Test()
+    Test() as any ReducerOf<Test>
   }
 }
 
 func testLimitedAvailability() {
   _ = CombineReducers {
     Test()
-    if #available(iOS 9999, *) {
+    if #available(iOS 9999, macOS 9999, tvOS 9999, visionOS 9999, watchOS 9999, *) {
       Test.Unavailable()
-    } else if #available(iOS 8888, *) {
+    } else if #available(iOS 8888, macOS 8888, tvOS 8888, visionOS 8888, watchOS 8888, *) {
       EmptyReducer()
     }
   }
 }
 
-private struct Root: Reducer {
+@Reducer
+private struct Root {
   struct State {
     var feature: Feature.State
     var optionalFeature: Feature.State?
@@ -42,43 +56,48 @@ private struct Root: Reducer {
     case feature(Feature.Action)
     case optionalFeature(Feature.Action)
     case enumFeature(Features.Action)
-    case features(id: Feature.State.ID, feature: Feature.Action)
+    case features(IdentifiedActionOf<Feature>)
   }
 
   @available(iOS, introduced: 9999)
-  struct Unavailable: Reducer {
+  @available(macOS, introduced: 9999)
+  @available(tvOS, introduced: 9999)
+  @available(visionOS, introduced: 9999)
+  @available(watchOS, introduced: 9999)
+  @Reducer
+  struct Unavailable {
     let body = EmptyReducer<State, Action>()
   }
 
   var body: some ReducerOf<Self> {
     CombineReducers {
-      Scope(state: \.feature, action: /Action.feature) {
+      Scope(state: \.feature, action: \.feature) {
         Feature()
         Feature()
       }
-      Scope(state: \.feature, action: /Action.feature) {
+      Scope(state: \.feature, action: \.feature) {
         Feature()
         Feature()
       }
     }
-    .ifLet(\.optionalFeature, action: /Action.optionalFeature) {
+    .ifLet(\.optionalFeature, action: \.optionalFeature) {
       Feature()
       Feature()
     }
-    .ifLet(\.enumFeature, action: /Action.enumFeature) {
+    .ifLet(\.enumFeature, action: \.enumFeature) {
       EmptyReducer()
-        .ifCaseLet(/Features.State.featureA, action: /Features.Action.featureA) {
+        .ifCaseLet(\.featureA, action: \.featureA) {
           Feature()
           Feature()
         }
-        .ifCaseLet(/Features.State.featureB, action: /Features.Action.featureB) {
+        .ifCaseLet(\.featureB, action: \.featureB) {
           Feature()
           Feature()
         }
 
       Features()
     }
-    .forEach(\.features, action: /Action.features) {
+    .forEach(\.features, action: \.features) {
       Feature()
       Feature()
     }
@@ -100,12 +119,13 @@ private struct Root: Reducer {
       Self()
     }
 
-    if #available(iOS 9999, *) {
+    if #available(iOS 9999, macOS 9999, tvOS 9999, visionOS 9999, watchOS 9999, *) {
       Unavailable()
     }
   }
 
-  struct Feature: Reducer {
+  @Reducer
+  struct Feature {
     struct State: Identifiable {
       let id: Int
     }
@@ -113,12 +133,13 @@ private struct Root: Reducer {
       case action
     }
 
-    func reduce(into state: inout State, action: Action) -> Effect<Action> {
-      .none
+    var body: some Reducer<State, Action> {
+      EmptyReducer()
     }
   }
 
-  struct Features: Reducer {
+  @Reducer
+  struct Features {
     enum State {
       case featureA(Feature.State)
       case featureB(Feature.State)
@@ -130,17 +151,18 @@ private struct Root: Reducer {
     }
 
     var body: some ReducerOf<Self> {
-      Scope(state: /State.featureA, action: /Action.featureA) {
+      Scope(state: \.featureA, action: \.featureA) {
         Feature()
       }
-      Scope(state: /State.featureB, action: /Action.featureB) {
+      Scope(state: \.featureB, action: \.featureB) {
         Feature()
       }
     }
   }
 }
 
-private struct IfLetExample: Reducer {
+@Reducer
+private struct IfLetExample {
   struct State {
     var optional: Int?
   }
@@ -148,11 +170,12 @@ private struct IfLetExample: Reducer {
   enum Action {}
 
   var body: some ReducerOf<Self> {
-    EmptyReducer().ifLet(\.optional, action: .self) { EmptyReducer() }
+    EmptyReducer().ifLet(\.optional, action: \.self) { EmptyReducer() }
   }
 }
 
-private struct IfCaseLetExample: Reducer {
+@Reducer
+private struct IfCaseLetExample {
   enum State {
     case value(Int)
   }
@@ -160,11 +183,12 @@ private struct IfCaseLetExample: Reducer {
   enum Action {}
 
   var body: some ReducerOf<Self> {
-    EmptyReducer().ifCaseLet(/State.value, action: .self) { EmptyReducer() }
+    EmptyReducer().ifCaseLet(\.value, action: \.self) { EmptyReducer() }
   }
 }
 
-private struct ForEachExample: Reducer {
+@Reducer
+private struct ForEachExample {
   struct Element: Identifiable { let id: Int }
 
   struct State {
@@ -172,15 +196,16 @@ private struct ForEachExample: Reducer {
   }
 
   enum Action {
-    case value(id: Element.ID, action: Never)
+    case value(IdentifiedAction<Int, Never>)
   }
 
   var body: some ReducerOf<Self> {
-    EmptyReducer().forEach(\.values, action: /Action.value) { EmptyReducer() }
+    EmptyReducer().forEach(\.values, action: \.value) { EmptyReducer() }
   }
 }
 
-private struct ScopeIfLetExample: Reducer {
+@Reducer
+private struct ScopeIfLetExample {
   struct State {
     var optionalSelf: Self? {
       get { self }
@@ -191,9 +216,9 @@ private struct ScopeIfLetExample: Reducer {
   enum Action {}
 
   var body: some ReducerOf<Self> {
-    Scope(state: \.self, action: .self) {
+    Scope(state: \.self, action: \.self) {
       EmptyReducer()
-        .ifLet(\.optionalSelf, action: .self) {
+        .ifLet(\.optionalSelf, action: \.self) {
           EmptyReducer()
         }
     }
