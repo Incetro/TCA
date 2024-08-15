@@ -670,23 +670,25 @@ final class SharedTests: XCTestCase {
     }
   }
 
-  @MainActor
-  func testObserveWithPrintChanges() async {
-    let store = TestStore(initialState: SimpleFeature.State(count: Shared(0))) {
-      SimpleFeature()._printChanges()
-    }
+  #if canImport(UIKit)
+    @MainActor
+    func testObserveWithPrintChanges() async {
+      let store = TestStore(initialState: SimpleFeature.State(count: Shared(0))) {
+        SimpleFeature()._printChanges()
+      }
 
-    var observations: [Int] = []
-    observe {
-      observations.append(store.state.count)
-    }
+      var observations: [Int] = []
+      observe {
+        observations.append(store.state.count)
+      }
 
-    XCTAssertEqual(observations, [0])
-    await store.send(.incrementInReducer) {
-      $0.count += 1
+      XCTAssertEqual(observations, [0])
+      await store.send(.incrementInReducer) {
+        $0.count += 1
+      }
+      XCTAssertEqual(observations, [0, 1])
     }
-    XCTAssertEqual(observations, [0, 1])
-  }
+  #endif
 
   func testSharedDefaults_UseDefault() {
     @Shared(.isOn) var isOn
@@ -961,9 +963,9 @@ final class SharedTests: XCTestCase {
 
     first.wrappedValue.name = "Blob"
     second.wrappedValue.name = "Blob Jr"
-    XCTAssertNoDifference(first.wrappedValue, User(id: 1, name: "Blob"))
-    XCTAssertNoDifference(second.wrappedValue, User(id: 2, name: "Blob Jr"))
-    XCTAssertNoDifference(
+    expectNoDifference(first.wrappedValue, User(id: 1, name: "Blob"))
+    expectNoDifference(second.wrappedValue, User(id: 2, name: "Blob Jr"))
+    expectNoDifference(
       sharedCollection.wrappedValue,
       [
         User(id: 1, name: "Blob"),
@@ -972,9 +974,9 @@ final class SharedTests: XCTestCase {
     )
 
     sharedCollection.wrappedValue.swapAt(0, 1)
-    XCTAssertNoDifference(first.wrappedValue, User(id: 1, name: "Blob"))
-    XCTAssertNoDifference(second.wrappedValue, User(id: 2, name: "Blob Jr"))
-    XCTAssertNoDifference(
+    expectNoDifference(first.wrappedValue, User(id: 1, name: "Blob"))
+    expectNoDifference(second.wrappedValue, User(id: 2, name: "Blob Jr"))
+    expectNoDifference(
       sharedCollection.wrappedValue,
       [
         User(id: 2, name: "Blob Jr"),
@@ -984,9 +986,9 @@ final class SharedTests: XCTestCase {
 
     first.wrappedValue.name += ", M.D."
     second.wrappedValue.name += ", Esq."
-    XCTAssertNoDifference(first.wrappedValue, User(id: 1, name: "Blob, M.D."))
-    XCTAssertNoDifference(second.wrappedValue, User(id: 2, name: "Blob Jr, Esq."))
-    XCTAssertNoDifference(
+    expectNoDifference(first.wrappedValue, User(id: 1, name: "Blob, M.D."))
+    expectNoDifference(second.wrappedValue, User(id: 2, name: "Blob Jr, Esq."))
+    expectNoDifference(
       sharedCollection.wrappedValue,
       [
         User(id: 2, name: "Blob Jr, Esq."),

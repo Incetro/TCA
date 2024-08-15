@@ -249,8 +249,8 @@
         ] = .init()
       } issueMatcher: {
         $0.compactDescription == """
-          failed - SwiftUI wrote to a "NavigationStack" binding at "file.swift:1" with a path that \
-          has the same number of elements that already exist in the store. SwiftUI should only \
+          failed - A navigation stack binding at "file.swift:1" was written to with a path that \ 
+          has the same number of elements that already exist in the store. A view should only \
           write to this binding with a path that has pushed a new element onto the stack, or \
           popped one or more elements from the stack.
 
@@ -304,8 +304,8 @@
         ] = nil
       } issueMatcher: {
         $0.compactDescription == """
-          failed - SwiftUI dismissed a view through a binding at "file.swift:1", but the store \
-          destination wasn't set to "nil".
+          failed - A binding at "file.swift:1" was set to "nil", but the store destination wasn't \
+          nil'd out.
 
           This usually means an "ifLet" has not been integrated with the reducer powering the \
           store, and this reducer is responsible for handling presentation actions.
