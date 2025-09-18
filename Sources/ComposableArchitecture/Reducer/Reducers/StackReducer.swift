@@ -210,14 +210,14 @@ extension StackState: Hashable where Element: Hashable {
 extension StackState: Sendable where Element: Sendable {}
 
 extension StackState: Decodable where Element: Decodable {
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: any Decoder) throws {
     let elements = try [Element](from: decoder)
     self.init(elements)
   }
 }
 
 extension StackState: Encodable where Element: Encodable {
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     try [Element](self).encode(to: encoder)
   }
 }
@@ -369,6 +369,10 @@ extension Reducer {
   ///   - toStackAction: A case path from parent action to a stack action.
   ///   - destination: A reducer that will be invoked with destination actions against elements of
   ///     destination state.
+  ///   - fileID: The fileID.
+  ///   - filePath: The filePath.
+  ///   - line: The line.
+  ///   - column: The column.
   /// - Returns: A reducer that combines the destination reducer with the parent reducer.
   @inlinable
   @warn_unqualified_access
@@ -517,7 +521,7 @@ public struct _StackReducer<Base: Reducer, Destination: Reducer>: Reducer {
             into: &state[keyPath: self.toStackState][id: elementID]!,
             action: destinationAction
           )
-          .map { toStackAction.embed(.element(id: elementID, action: $0)) }
+          .map { [toStackAction] in toStackAction.embed(.element(id: elementID, action: $0)) }
           ._cancellable(navigationIDPath: elementNavigationIDPath)
       } else {
         reportIssue(
@@ -538,7 +542,7 @@ public struct _StackReducer<Base: Reducer, Destination: Reducer>: Reducer {
           associated effect before an element is removed, especially if it is a long-living effect.
 
           • This action was sent to the store while its state contained no element at this ID. To \
-          fix this make sure that actions for this reducer can only be sent from a view store when \
+          fix this make sure that actions for this reducer can only be sent from a store when \
           its state contains an element at this id. In SwiftUI applications, use \
           "NavigationStack.init(path:)" with a binding to a store.
           """,
@@ -682,13 +686,12 @@ public struct _StackReducer<Base: Reducer, Destination: Reducer>: Reducer {
 /// resorting to positional indices, which can be error prone, especially when dealing with async
 /// effects.
 ///
-/// In production environments (e.g. in Xcode previews, simulators and on devices) the identifier
-/// is backed by a randomly generated UUID, but in tests a deterministic, generational ID is used.
-/// This allows you to predict how IDs will be created and allows you to write tests for how
-/// features behave in the stack.
+/// The identifier is backed by a deterministic, generational ID. This allows you to predict how
+/// IDs will be created and allows you to write tests for how features behave in the stack.
 ///
 /// ```swift
-/// func testBasics() {
+/// @Test
+/// func basics() {
 ///   var path = StackState<Int>()
 ///   path.append(42)
 ///   XCTAssertEqual(path[id: 0], 42)
@@ -741,6 +744,10 @@ extension StackElementID: ExpressibleByIntegerLiteral {
   }
 }
 
-private struct NavigationDismissID: Hashable {
-  let elementID: AnyHashable
+private struct NavigationDismissID: Hashable, Sendable {
+  private let elementID: AnyHashableSendable
+
+  init(elementID: some Hashable & Sendable) {
+    self.elementID = AnyHashableSendable(elementID)
+  }
 }

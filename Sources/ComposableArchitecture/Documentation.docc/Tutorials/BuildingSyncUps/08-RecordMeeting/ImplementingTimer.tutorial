@@ -113,8 +113,7 @@
       Let's run the feature in the Xcode preview to make sure it works. However, we don't want to
       wait for the full sync-up duration to pass just to see how this feature behaves. It would be
       far better if we could stub in a sync-up that has a particularly short duration to make it
-      easier to preview. Luckily we can do that easily with the [`@Shared`](<doc:Shared>) property
-      wrapper.
+      easier to preview. Luckily we can do that easily with the `@Shared` property wrapper.
       
       @Step {
         Go to the preview at the bottom of the AppFeature.swift file and override the shared
@@ -488,10 +487,9 @@
       fulfillment at the end of the test.
       
       @Step {
-        Create an expectation at the top of the test, fulfill it in the 
-        ``ComposableArchitecture/DismissEffect``, and then await its fulfillment at the end
-        of the test.
-        
+        Use the ``TestStore/isDismissed`` property to assert that the feature was dismissed at the
+        end of the test.
+
         @Code(name: "RecordMeetingTests.swift", file: ImplementingTimer-04-code-0017.swift)
       }
       

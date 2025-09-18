@@ -49,6 +49,10 @@ extension Reducer {
   ///   - toWrappedAction: A case path from parent action to a case containing child actions.
   ///   - wrapped: A reducer that will be invoked with child actions against non-optional child
   ///     state.
+  ///   - fileID: The fileID.
+  ///   - filePath: The filePath.
+  ///   - line: The line.
+  ///   - column: The column.
   /// - Returns: A reducer that combines the child reducer with the parent reducer.
   @inlinable
   @warn_unqualified_access
@@ -299,7 +303,7 @@ public struct _IfLetReducer<Parent: Reducer, Child: Reducer>: Reducer {
         before child state becomes "nil", especially if it is a long-living effect.
 
         • This action was sent to the store while state was "nil". Make sure that actions for this \
-        reducer can only be sent from a view store when state is non-"nil". In SwiftUI \
+        reducer can only be sent from a store when state is non-"nil". In SwiftUI \
         applications, use "IfLetStore".
         """,
         fileID: fileID,
@@ -314,7 +318,7 @@ public struct _IfLetReducer<Parent: Reducer, Child: Reducer>: Reducer {
     return self.child
       .dependency(\.navigationIDPath, self.navigationIDPath.appending(navigationID))
       .reduce(into: &state[keyPath: self.toChildState]!, action: childAction)
-      .map { self.toChildAction.embed($0) }
+      .map { [toChildAction] in toChildAction.embed($0) }
       ._cancellable(id: navigationID, navigationIDPath: self.navigationIDPath)
   }
 }

@@ -194,6 +194,12 @@ struct InventoryFeature {
 > expands it into a fully composed feature that operates on enum state with a case for each
 > feature's state. You can expand the macro code in Xcode to see everything that is written for you.
 
+> Tip: Since the ``Reducer()`` macro generates the `State` and `Action` types for you, if you need
+> to apply any protocols to those types you can do so in an extension:
+> ```swift
+> extension InventoryFeature.Destination.State: Equatable, Sendable {}
+> ```
+
 With that done we can now hold onto a _single_ piece of optional state in our feature, using the
 ``Presents()`` macro, and we hold onto the destination actions using the
 ``PresentationAction`` type:
@@ -380,9 +386,8 @@ extension NavigationLink {
       isActive: Binding(
         get: { item.wrappedValue != nil },
         set: { isActive, transaction in
-          if isActive {
-            onNavigate()  
-          } else {
+          onNavigate(isActive)
+          if !isActive {
             item.transaction(transaction).wrappedValue = nil
           }
         }
@@ -513,7 +518,7 @@ the child domain without explicitly communicating with the parent.
 ## Testing
 
 A huge benefit of properly modeling your domains for navigation is that testing becomes quite easy.
-Further, using "non-exhaustive testing" (see <doc:Testing#Non-exhaustive-testing>) can be very 
+Further, using "non-exhaustive testing" (see <doc:TestingTCA#Non-exhaustive-testing>) can be very 
 useful for testing navigation since you often only want to assert on a few high level details and 
 not all state mutations and effects.
 
@@ -582,7 +587,8 @@ feature's count is incremented above 5 it will dismiss itself. To do this we wil
 ``TestStore`` for `Feature` that starts in a state with the count already set to 3:
 
 ```swift
-func testDismissal() {
+@Test
+func dismissal() {
   let store = TestStore(
     initialState: Feature.State(
       counter: CounterFeature.State(count: 3)
@@ -626,18 +632,19 @@ other.
 However, the more complex the features become, the more cumbersome testing their integration can be.
 By default, ``TestStore`` requires us to be exhaustive in our assertions. We must assert on how
 every piece of state changes, how every effect feeds data back into the system, and we must make
-sure that all effects finish by the end of the test (see <doc:Testing> for more info).
+sure that all effects finish by the end of the test (see <doc:TestingTCA> for more info).
 
 But ``TestStore`` also supports a form of testing known as "non-exhaustive testing" that allows you
 to assert on only the parts of the features that you actually care about (see 
-<doc:Testing#Non-exhaustive-testing> for more info).
+<doc:TestingTCA#Non-exhaustive-testing> for more info).
 
 For example, if we turn off exhaustivity on the test store (see ``TestStore/exhaustivity``) then we
 can assert at a high level that when the increment button is tapped twice that eventually we receive
 a dismiss action:
 
 ```swift
-func testDismissal() {
+@Test
+func dismissal() {
   let store = TestStore(
     initialState: Feature.State(
       counter: CounterFeature.State(count: 3)

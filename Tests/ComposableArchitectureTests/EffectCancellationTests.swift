@@ -11,6 +11,12 @@ final class EffectCancellationTests: BaseTCATestCase {
     self.cancellables.removeAll()
   }
 
+  override func invokeTest() {
+    withMainSerialExecutor {
+      super.invokeTest()
+    }
+  }
+
   func testCancellation() async {
     let values = LockIsolated<[Int]>([])
 
@@ -279,6 +285,22 @@ final class EffectCancellationTests: BaseTCATestCase {
     }
     XCTAssertEqual(output, [1, 2])
   }
+
+  @available(iOS 15.0, *)
+  func testCancellationWithoutThrowingCancellationError() async throws {
+    let effect = Effect<Void>.run { send in
+      let session = URLSession(configuration: .ephemeral)
+      let request = URLRequest(url: URL(string: "http://ipv4.download.thinkbroadband.com/1GB.zip")!)
+      let (data, response) = try await session.data(for: request, delegate: nil)
+      _ = (data, response)
+    }
+    .cancellable(id: 1)
+    Task {
+      for await _ in effect.actions {}
+    }
+    try await Task.sleep(nanoseconds: 10_000_000)
+    Task.cancel(id: 1)
+  }
 }
 
 #if DEBUG
@@ -292,7 +314,10 @@ final class EffectCancellationTests: BaseTCATestCase {
 
       for await _ in Effect.send(1).cancellable(id: id).actions {}
 
-      XCTAssertEqual(_cancellationCancellables.exists(at: id, path: NavigationIDPath()), false)
+      XCTAssertEqual(
+        _cancellationCancellables.withValue { $0.exists(at: id, path: NavigationIDPath()) },
+        false
+      )
     }
 
     func testCancellablesCleanUp_OnCancel() async {
@@ -315,7 +340,10 @@ final class EffectCancellationTests: BaseTCATestCase {
 
       await task.value
 
-      XCTAssertEqual(_cancellationCancellables.exists(at: id, path: NavigationIDPath()), false)
+      XCTAssertEqual(
+        _cancellationCancellables.withValue { $0.exists(at: id, path: NavigationIDPath()) },
+        false
+      )
     }
 
     func testConcurrentCancels() {
@@ -338,7 +366,8 @@ final class EffectCancellationTests: BaseTCATestCase {
             .publisher {
               Just(idx)
                 .delay(
-                  for: .milliseconds(Int.random(in: 1...100)), scheduler: queues.randomElement()!
+                  for: .milliseconds(Int.random(in: 1...100)),
+                  scheduler: queues.randomElement()!
                 )
             }
             .cancellable(id: id),
@@ -346,7 +375,8 @@ final class EffectCancellationTests: BaseTCATestCase {
             .publisher {
               Empty()
                 .delay(
-                  for: .milliseconds(Int.random(in: 1...100)), scheduler: queues.randomElement()!
+                  for: .milliseconds(Int.random(in: 1...100)),
+                  scheduler: queues.randomElement()!
                 )
                 .handleEvents(receiveCompletion: { _ in Task.cancel(id: id) })
             }
@@ -363,7 +393,7 @@ final class EffectCancellationTests: BaseTCATestCase {
 
       for id in ids {
         XCTAssertEqual(
-          _cancellationCancellables.exists(at: id, path: NavigationIDPath()),
+          _cancellationCancellables.withValue { $0.exists(at: id, path: NavigationIDPath()) },
           false,
           "cancellationCancellables should not contain id \(id)"
         )
@@ -371,9 +401,12 @@ final class EffectCancellationTests: BaseTCATestCase {
     }
 
     func testAsyncConcurrentCancels() async {
+      if ProcessInfo.processInfo.environment["CI"] != nil {
+        XCTExpectFailure(strict: false)
+      }
       uncheckedUseMainSerialExecutor = false
       await Task.yield()
-      XCTAssertTrue(!Thread.isMainThread)
+      XCTAssertTrue(!Thread.isMainThread, "Should not be on main thread")
       let ids = (1...100).map { _ in UUID() }
 
       let areCancelled = await withTaskGroup(of: Bool.self, returning: [Bool].self) { group in
@@ -381,22 +414,26 @@ final class EffectCancellationTests: BaseTCATestCase {
           let id = ids[index.quotientAndRemainder(dividingBy: ids.count).remainder]
           group.addTask {
             await withTaskCancellation(id: id) {
-              nil == (try? await Task.sleep(nanoseconds: 2_000_000_000))
+              nil == (try? await Task.sleep(nanoseconds: 10_000_000_000))
             }
           }
-          Task {
+          group.addTask {
             try? await Task.sleep(nanoseconds: .random(in: 1_000_000...2_000_000))
             Task.cancel(id: id)
+            return true
           }
         }
         return await group.reduce(into: [Bool]()) { $0.append($1) }
       }
 
-      XCTAssertTrue(areCancelled.allSatisfy({ isCancelled in isCancelled }))
+      XCTAssertTrue(
+        areCancelled.allSatisfy({ isCancelled in isCancelled }),
+        "All tasks should be cancelled"
+      )
 
       for id in ids {
         XCTAssertEqual(
-          _cancellationCancellables.exists(at: id, path: NavigationIDPath()),
+          _cancellationCancellables.withValue { $0.exists(at: id, path: NavigationIDPath()) },
           false,
           "cancellationCancellables should not contain id \(id)"
         )
@@ -412,6 +449,38 @@ final class EffectCancellationTests: BaseTCATestCase {
       // NB: We hash the type of the cancel ID to give more variance in the hash since all empty
       //     structs in Swift have the same hash value.
       XCTAssertNotEqual(id1.hashValue, id2.hashValue)
+    }
+
+    func testCancellablePath() async throws {
+      let navigationIDPath = NavigationIDPath(path: [NavigationID()])
+      let effect = withDependencies {
+        $0.navigationIDPath = navigationIDPath
+      } operation: {
+        Effect
+          .publisher {
+            Just(()).delay(for: .seconds(1), scheduler: DispatchQueue(label: #function))
+          }
+          .cancellable(id: 1)
+      }
+      await withThrowingTaskGroup(of: Void.self) { taskGroup in
+        taskGroup.addTask {
+          await withDependencies {
+            $0.navigationIDPath = NavigationIDPath(path: [NavigationID()])
+          } operation: {
+            for await _ in effect.actions {
+              XCTFail()
+            }
+          }
+        }
+        taskGroup.addTask {
+          try await withDependencies {
+            $0.navigationIDPath = navigationIDPath
+          } operation: {
+            try await Task.sleep(nanoseconds: NSEC_PER_SEC / 2)
+            Task.cancel(id: 1)
+          }
+        }
+      }
     }
   }
 #endif

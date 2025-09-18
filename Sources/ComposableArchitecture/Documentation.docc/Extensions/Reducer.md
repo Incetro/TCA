@@ -16,7 +16,6 @@ more concise and more powerful.
     * [Nested enum reducers](#Nested-enum-reducers)
   * [Gotchas](#Gotchas)
     * [Autocomplete](#Autocomplete)
-    * [Circular reference errors](#Circular-reference-errors)
     * [#Preview and enum reducers](#Preview-and-enum-reducers)
     * [CI build failures](#CI-build-failures)
 
@@ -136,7 +135,7 @@ struct CounterFeature: Reducer {
 > Note: This sample emulates a timer by performing an infinite loop with a `Task.sleep` inside. This
 > is simple to do, but is also inaccurate since small imprecisions can accumulate. It would be
 > better to inject a clock into the feature so that you could use its `timer` method. Read the
-> <doc:DependencyManagement> and <doc:Testing> articles for more information.
+> <doc:DependencyManagement> and <doc:TestingTCA> articles for more information.
 
 That is the basics of implementing a feature as a conformance to ``Reducer``. 
 
@@ -390,38 +389,29 @@ is a way to get access to the state in the store without any observation taking 
 #### Synthesizing protocol conformances on State and Action
 
 Since the `State` and `Action` types are generated automatically for you when using `@Reducer` on an
-enum, it's not possible to directly synthesize conformances of `Equatable`, `Hashable`,
-_etc._, on those types. And further, due to a bug in the Swift compiler you cannot currently do
-this:
+enum, you must extend these types yourself to synthesize conformances of `Equatable`, `Hashable`,
+_etc._:
 
 ```swift
 @Reducer
 enum Destination {
   // ...
 }
-extension Destination.State: Equatable {}  // ❌
+extension Destination.State: Equatable {}
 ```
 
-See <doc:Reducer#Circular-reference-errors> below for more info on this error.
-
-So, to work around this compiler bug the `@Reducer` macro takes two
-``ComposableArchitecture/_SynthesizedConformance`` arguments that allow you to describe which
-protocols you want to attach to the `State` or `Action` types:
-
-```swift
-@Reducer(state: .equatable, .sendable, action: .sendable)
-enum Destination {
-  // ...
-}
-```
-
-You can provide any combination of
-``ComposableArchitecture/_SynthesizedConformance/codable``,
-``ComposableArchitecture/_SynthesizedConformance/decodable``,
-``ComposableArchitecture/_SynthesizedConformance/encodable``,
-``ComposableArchitecture/_SynthesizedConformance/equatable``,
-``ComposableArchitecture/_SynthesizedConformance/hashable``, or
-``ComposableArchitecture/_SynthesizedConformance/sendable``.
+> Note: In Swift <6 the above extension causes a compiler error due to a bug in Swift.
+>
+> To work around this compiler bug, the library provides a version of the `@Reducer` macro that
+> takes two ``ComposableArchitecture/_SynthesizedConformance`` arguments, which allow you to
+> describe the protocols you want to attach to the `State` or `Action` types:
+>
+> ```swift
+> @Reducer(state: .equatable, .sendable, action: .sendable)
+> enum Destination {
+>   // ...
+> }
+> ```
 
 #### Nested enum reducers
 
@@ -463,30 +453,6 @@ providing additional type hints to the compiler:
     -  Reduce { state, action in
     +  Reduce<State, Action> { state, action in
     ```
-
-#### Circular reference errors
-
-There is currently a bug in the Swift compiler and macros that prevents you from extending types
-that are inside other types with macros applied in the same file. For example, if you wanted to
-extend a reducer's `State` with some extra functionality:
-
-```swift
-@Reducer
-struct Feature {
-  @ObservableState
-  struct State { /* ... */ }
-  // ...
-}
-
-extension Feature.State {  // 🛑 Circular reference
-  // ...
-}
-```
-
-This unfortunately does not work. It is a
-[known issue](https://github.com/apple/swift/issues/66450), and the only workaround is to either
-move the extension to a separate file, or move the code from the extension to be directly inside the
-`State` type.
 
 #### #Preview and enum reducers
 
@@ -551,6 +517,22 @@ struct Feature_Previews: PreviewProvider {
 }
 ```
 
+#### Error: External macro implementation … could not be found
+
+When integrating with the Composable Architecture, one may encounter the following error:
+
+> Error: External macro implementation type 'ComposableArchitectureMacros.ReducerMacro' could not be
+> found for macro 'Reducer()'
+
+This error can show up when the macro has not yet been enabled, which is a separate error that
+should be visible from Xcode's Issue navigator.
+
+Sometimes, however, this error will still emit due to an Xcode bug in which a custom build
+configuration name is being used in the project. In general, using a build configuration other than
+"Debug" or "Release" can trigger upstream build issues with Swift packages, and we recommend only
+using the default "Debug" and "Release" build configuration names to avoid the above issue and
+others.
+
 #### CI build failures
 
 When testing your code on an external CI server you may run into errors such as the following:
@@ -599,14 +581,8 @@ xcodebuild -skipMacroValidation …
 - ``Scope``
 - ``ifLet(_:action:then:fileID:filePath:line:column:)-2r2pn``
 - ``ifCaseLet(_:action:then:fileID:filePath:line:column:)-7sg8d``
-- ``forEach(_:action:element:fileID:filePath:line:column:)-3dw7i``
+- ``forEach(_:action:element:fileID:filePath:line:column:)-6zye8``
 - <doc:Navigation>
-
-### Sharing state
-
-- <doc:SharingState>
-- ``Shared``
-- ``PersistenceKey``
 
 ### Supporting reducers
 

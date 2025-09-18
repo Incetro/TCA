@@ -49,8 +49,6 @@ public struct ObservableStateMacro {
   static let ignoredMacroName = "ObservationStateIgnored"
   static let presentsMacroName = "Presents"
   static let presentationStatePropertyWrapperName = "PresentationState"
-  static let sharedPropertyWrapperName = "Shared"
-  static let sharedReaderPropertyWrapperName = "SharedReader"
 
   static let registrarVariableName = "_$observationRegistrar"
 
@@ -79,6 +77,46 @@ public struct ObservableStateMacro {
       """
   }
 
+  static func shouldNotifyObserversNonEquatableFunction(
+    _ perceptibleType: TokenSyntax, context: some MacroExpansionContext
+  ) -> DeclSyntax {
+    let memberGeneric = context.makeUniqueName("Member")
+    return
+      """
+       private nonisolated func shouldNotifyObservers<\(memberGeneric)>(_ lhs: \(memberGeneric), _ rhs: \(memberGeneric)) -> Bool { true }
+      """
+  }
+
+  static func shouldNotifyObserversEquatableFunction(
+    _ perceptibleType: TokenSyntax, context: some MacroExpansionContext
+  ) -> DeclSyntax {
+    let memberGeneric = context.makeUniqueName("Member")
+    return
+      """
+      private nonisolated func shouldNotifyObservers<\(memberGeneric): Equatable>(_ lhs: \(memberGeneric), _ rhs: \(memberGeneric)) -> Bool { lhs != rhs }
+      """
+  }
+
+  static func shouldNotifyObserversNonEquatableObjectFunction(
+    _ perceptibleType: TokenSyntax, context: some MacroExpansionContext
+  ) -> DeclSyntax {
+    let memberGeneric = context.makeUniqueName("Member")
+    return
+      """
+       private nonisolated func shouldNotifyObservers<\(memberGeneric): AnyObject>(_ lhs: \(memberGeneric), _ rhs: \(memberGeneric)) -> Bool { lhs !== rhs }
+      """
+  }
+
+  static func shouldNotifyObserversEquatableObjectFunction(
+    _ perceptibleType: TokenSyntax, context: some MacroExpansionContext
+  ) -> DeclSyntax {
+    let memberGeneric = context.makeUniqueName("Member")
+    return
+      """
+      private nonisolated func shouldNotifyObservers<\(memberGeneric): Equatable & AnyObject>(_ lhs: \(memberGeneric), _ rhs: \(memberGeneric)) -> Bool { lhs != rhs }
+      """
+  }
+
   static var ignoredAttribute: AttributeSyntax {
     AttributeSyntax(
       leadingTrivia: .space,
@@ -100,7 +138,8 @@ struct ObservationDiagnostic: DiagnosticMessage {
   var severity: DiagnosticSeverity
 
   init(
-    message: String, diagnosticID: SwiftDiagnostics.MessageID,
+    message: String,
+    diagnosticID: SwiftDiagnostics.MessageID,
     severity: SwiftDiagnostics.DiagnosticSeverity = .error
   ) {
     self.message = message
@@ -109,7 +148,10 @@ struct ObservationDiagnostic: DiagnosticMessage {
   }
 
   init(
-    message: String, domain: String, id: ID, severity: SwiftDiagnostics.DiagnosticSeverity = .error
+    message: String,
+    domain: String,
+    id: ID,
+    severity: SwiftDiagnostics.DiagnosticSeverity = .error
   ) {
     self.message = message
     self.diagnosticID = MessageID(domain: domain, id: id.rawValue)
@@ -119,7 +161,10 @@ struct ObservationDiagnostic: DiagnosticMessage {
 
 extension DiagnosticsError {
   init<S: SyntaxProtocol>(
-    syntax: S, message: String, domain: String = "Observation", id: ObservationDiagnostic.ID,
+    syntax: S,
+    message: String,
+    domain: String = "Observation",
+    id: ObservationDiagnostic.ID,
     severity: SwiftDiagnostics.DiagnosticSeverity = .error
   ) {
     self.init(diagnostics: [
@@ -160,8 +205,11 @@ extension TokenSyntax {
     switch tokenKind {
     case .identifier(let identifier):
       return TokenSyntax(
-        .identifier(prefix + identifier), leadingTrivia: leadingTrivia,
-        trailingTrivia: trailingTrivia, presence: presence)
+        .identifier(prefix + identifier),
+        leadingTrivia: leadingTrivia,
+        trailingTrivia: trailingTrivia,
+        presence: presence
+      )
     default:
       return self
     }
@@ -185,7 +233,8 @@ extension PatternBindingListSyntax {
           initializer: binding.initializer,
           accessorBlock: binding.accessorBlock,
           trailingComma: binding.trailingComma,
-          trailingTrivia: binding.trailingTrivia)
+          trailingTrivia: binding.trailingTrivia
+        )
 
       }
     }
@@ -204,8 +253,11 @@ extension VariableDeclSyntax {
       attributes: newAttributes,
       modifiers: modifiers.privatePrefixed(prefix),
       bindingSpecifier: TokenSyntax(
-        bindingSpecifier.tokenKind, leadingTrivia: .space, trailingTrivia: .space,
-        presence: .present),
+        bindingSpecifier.tokenKind,
+        leadingTrivia: .space,
+        trailingTrivia: .space,
+        presence: .present
+      ),
       bindings: bindings.privatePrefixed(prefix),
       trailingTrivia: trailingTrivia
     )
@@ -217,20 +269,45 @@ extension VariableDeclSyntax {
 }
 
 extension ObservableStateMacro: MemberMacro {
-  public static func expansion<
-    Declaration: DeclGroupSyntax,
-    Context: MacroExpansionContext
-  >(
+  #if canImport(SwiftSyntax601)
+    public static func expansion(
+      of node: AttributeSyntax,
+      providingMembersOf declaration: some DeclGroupSyntax,
+      conformingTo protocols: [TypeSyntax],
+      in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+      try _expansion(
+        of: node,
+        providingMembersOf: declaration,
+        conformingTo: protocols,
+        in: context
+      )
+    }
+  #else
+    public static func expansion<
+      Declaration: DeclGroupSyntax,
+      Context: MacroExpansionContext
+    >(
+      of node: AttributeSyntax,
+      providingMembersOf declaration: Declaration,
+      in context: Context
+    ) throws -> [DeclSyntax] {
+      try _expansion(of: node, providingMembersOf: declaration, conformingTo: [], in: context)
+    }
+  #endif
+
+  private static func _expansion(
     of node: AttributeSyntax,
-    providingMembersOf declaration: Declaration,
-    in context: Context
+    providingMembersOf declaration: some DeclGroupSyntax,
+    conformingTo protocols: [TypeSyntax],
+    in context: some MacroExpansionContext
   ) throws -> [DeclSyntax] {
     guard !declaration.isEnum
     else {
       return try enumExpansion(of: node, providingMembersOf: declaration, in: context)
     }
 
-    guard let identified = declaration.asProtocol(NamedDeclSyntax.self) else {
+    guard let identified = declaration.asProtocol((any NamedDeclSyntax).self) else {
       return []
     }
 
@@ -241,22 +318,38 @@ extension ObservableStateMacro: MemberMacro {
       throw DiagnosticsError(
         syntax: node,
         message: "'@ObservableState' cannot be applied to class type '\(observableType.text)'",
-        id: .invalidApplication)
+        id: .invalidApplication
+      )
     }
     if declaration.isActor {
       // actors cannot yet be supported for their isolation
       throw DiagnosticsError(
         syntax: node,
         message: "'@ObservableState' cannot be applied to actor type '\(observableType.text)'",
-        id: .invalidApplication)
+        id: .invalidApplication
+      )
     }
 
     var declarations = [DeclSyntax]()
 
     declaration.addIfNeeded(
-      ObservableStateMacro.registrarVariable(observableType), to: &declarations)
+      ObservableStateMacro.registrarVariable(observableType),
+      to: &declarations
+    )
     declaration.addIfNeeded(ObservableStateMacro.idVariable(), to: &declarations)
     declaration.addIfNeeded(ObservableStateMacro.willModifyFunction(), to: &declarations)
+    declaration.addIfNeeded(
+      ObservableStateMacro.shouldNotifyObserversNonEquatableFunction(
+        observableType, context: context), to: &declarations)
+    declaration.addIfNeeded(
+      ObservableStateMacro.shouldNotifyObserversEquatableFunction(observableType, context: context),
+      to: &declarations)
+    declaration.addIfNeeded(
+      ObservableStateMacro.shouldNotifyObserversNonEquatableObjectFunction(
+        observableType, context: context), to: &declarations)
+    declaration.addIfNeeded(
+      ObservableStateMacro.shouldNotifyObserversEquatableObjectFunction(
+        observableType, context: context), to: &declarations)
 
     return declarations
   }
@@ -450,20 +543,23 @@ extension ObservableStateMacro: MemberAttributeMacro {
     )
 
     if property.hasMacroApplication(ObservableStateMacro.presentsMacroName)
-      || property.hasMacroApplication(ObservableStateMacro.sharedPropertyWrapperName)
-      || property.hasMacroApplication(ObservableStateMacro.sharedReaderPropertyWrapperName)
+      || knownSupportedPropertyWrappers.contains(where: property.hasMacroApplication)
     {
       return [
         AttributeSyntax(
           attributeName: IdentifierTypeSyntax(
-            name: .identifier(ObservableStateMacro.ignoredMacroName)))
+            name: .identifier(ObservableStateMacro.ignoredMacroName)
+          )
+        )
       ]
     }
 
     return [
       AttributeSyntax(
         attributeName: IdentifierTypeSyntax(
-          name: .identifier(ObservableStateMacro.trackedMacroName)))
+          name: .identifier(ObservableStateMacro.trackedMacroName)
+        )
+      )
     ]
   }
 }
@@ -543,7 +639,7 @@ public struct ObservationStateTrackedMacro: AccessorMacro {
     if property.hasMacroApplication(ObservableStateMacro.ignoredMacroName)
       || property.hasMacroApplication(ObservableStateMacro.presentationStatePropertyWrapperName)
       || property.hasMacroApplication(ObservableStateMacro.presentsMacroName)
-      || property.hasMacroApplication(ObservableStateMacro.sharedPropertyWrapperName)
+      || knownSupportedPropertyWrappers.contains(where: property.hasMacroApplication)
     {
       return []
     }
@@ -567,7 +663,7 @@ public struct ObservationStateTrackedMacro: AccessorMacro {
     let setAccessor: AccessorDeclSyntax =
       """
       set {
-      \(raw: ObservableStateMacro.registrarVariableName).mutate(self, keyPath: \\.\(identifier), &_\(identifier), newValue, _$isIdentityEqual)
+      \(raw: ObservableStateMacro.registrarVariableName).mutate(self, keyPath: \\.\(identifier), &_\(identifier), newValue, _$isIdentityEqual, shouldNotifyObservers)
       }
       """
     let modifyAccessor: AccessorDeclSyntax = """
@@ -602,14 +698,15 @@ extension ObservationStateTrackedMacro: PeerMacro {
     if property.hasMacroApplication(ObservableStateMacro.ignoredMacroName)
       || property.hasMacroApplication(ObservableStateMacro.presentationStatePropertyWrapperName)
       || property.hasMacroApplication(ObservableStateMacro.presentsMacroName)
-      || property.hasMacroApplication(ObservableStateMacro.sharedPropertyWrapperName)
+      || knownSupportedPropertyWrappers.contains(where: property.hasMacroApplication)
       || property.hasMacroApplication(ObservableStateMacro.trackedMacroName)
     {
       return []
     }
 
     let storage = DeclSyntax(
-      property.privatePrefixed("_", addingAttribute: ObservableStateMacro.ignoredAttribute))
+      property.privatePrefixed("_", addingAttribute: ObservableStateMacro.ignoredAttribute)
+    )
     return [storage]
   }
 }
@@ -626,3 +723,7 @@ public struct ObservationStateIgnoredMacro: AccessorMacro {
     return []
   }
 }
+
+private let knownSupportedPropertyWrappers = [
+  "Shared", "SharedReader", "Fetch", "FetchAll", "FetchOne",
+]

@@ -1,19 +1,20 @@
 # The Composable Architecture
 
-[![CI](https://github.com/pointfreeco/swift-composable-architecture/workflows/CI/badge.svg)](https://github.com/pointfreeco/swift-composable-architecture/actions?query=workflow%3ACI)
+[![CI](https://github.com/pointfreeco/swift-composable-architecture/actions/workflows/ci.yml/badge.svg)](https://github.com/pointfreeco/swift-composable-architecture/actions/workflows/ci.yml)
 [![Slack](https://img.shields.io/badge/slack-chat-informational.svg?label=Slack&logo=slack)](https://www.pointfree.co/slack-invite)
 [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fpointfreeco%2Fswift-composable-architecture%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/pointfreeco/swift-composable-architecture)
 [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fpointfreeco%2Fswift-composable-architecture%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/pointfreeco/swift-composable-architecture)
 
 The Composable Architecture (TCA, for short) is a library for building applications in a consistent 
 and understandable way, with composition, testing, and ergonomics in mind. It can be used in 
-SwiftUI, UIKit, and more, and on any Apple platform (iOS, macOS, visionOS, tvOS, and watchOS).
+SwiftUI, UIKit, and more, and on any Apple platform (iOS, macOS, iPadOS, visionOS, tvOS, and watchOS).
 
 * [What is the Composable Architecture?](#what-is-the-composable-architecture)
 * [Learn more](#learn-more)
 * [Examples](#examples)
 * [Basic usage](#basic-usage)
 * [Documentation](#documentation)
+* [FAQ](#faq)
 * [Community](#community)
 * [Installation](#installation)
 * [Translations](#translations)
@@ -49,7 +50,7 @@ day-to-day when building applications, such as:
 ## Learn More
 
 The Composable Architecture was designed over the course of many episodes on 
-[Point-Free][pointfreeco], a video series exploring functional programming and the Swift language, 
+[Point-Free][pointfreeco], a video series exploring advanced programming topics in the Swift language, 
 hosted by [Brandon Williams][mbrandonw] and [Stephen Celis][stephencelis].
 
 You can watch all of the episodes [here][tca-episode-collection], as well as a dedicated, [multipart
@@ -263,7 +264,7 @@ the store. The code is a bit longer than the SwiftUI version, so we have collaps
         guard let self 
         else { return }
         
-        countLabel.text = "\(self.store.text)"
+        countLabel.text = "\(self.store.count)"
         factLabel.text = self.store.numberFact
       }
     }
@@ -318,8 +319,8 @@ To test use a `TestStore`, which can be created with the same information as the
 does extra work to allow you to assert how your feature evolves as actions are sent:
 
 ```swift
-@MainActor
-func testFeature() async {
+@Test
+func basics() async {
   let store = TestStore(initialState: Feature.State()) {
     Feature()
   }
@@ -410,8 +411,8 @@ But in tests we can use a mock dependency that immediately returns a determinist
 fact: 
 
 ```swift
-@MainActor
-func testFeature() async {
+@Test
+func basics() async {
   let store = TestStore(initialState: Feature.State()) {
     Feature(numberFact: { "\($0) is a good number Brent" })
   }
@@ -532,13 +533,17 @@ advanced usages.
 The documentation for releases and `main` are available here:
 
 * [`main`](https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/)
-* [1.13.0](https://pointfreeco.github.io/swift-composable-architecture/1.13.0/documentation/composablearchitecture/) ([migration guide](https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.13))
+* [1.17.0](https://pointfreeco.github.io/swift-composable-architecture/1.17.0/documentation/composablearchitecture/) ([migration guide](https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.17))
 
 <details>
   <summary>
   Other versions
   </summary>
 
+  * [1.16.0](https://pointfreeco.github.io/swift-composable-architecture/1.16.0/documentation/composablearchitecture/) ([migration guide](https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.16))
+  * [1.15.0](https://pointfreeco.github.io/swift-composable-architecture/1.15.0/documentation/composablearchitecture/) ([migration guide](https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.15))
+  * [1.14.0](https://pointfreeco.github.io/swift-composable-architecture/1.14.0/documentation/composablearchitecture/) ([migration guide](https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.14))
+  * [1.13.0](https://pointfreeco.github.io/swift-composable-architecture/1.13.0/documentation/composablearchitecture/) ([migration guide](https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.13))
   * [1.12.0](https://pointfreeco.github.io/swift-composable-architecture/1.12.0/documentation/composablearchitecture/) ([migration guide](https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.12))
   * [1.11.0](https://pointfreeco.github.io/swift-composable-architecture/1.11.0/documentation/composablearchitecture/) ([migration guide](https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.11))
   * [1.10.0](https://pointfreeco.github.io/swift-composable-architecture/1.10.0/documentation/composablearchitecture/) ([migration guide](https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/migratingto1.10))
@@ -570,6 +575,11 @@ comfortable with the library:
 * [Performance][performance-article]
 * [Concurrency][concurrency-article]
 * [Bindings][bindings-article]
+
+## FAQ
+
+We have a [dedicated article][faq-article] for all of the most frequently asked questions and
+comments people have concerning the library.
 
 ## Community
 
@@ -626,19 +636,15 @@ The following translations of this README have been contributed by members of th
 * [Korean](https://gist.github.com/Achoo-kr/5d8936d12e71028fcc4a7c5e078ca038)
 * [Polish](https://gist.github.com/MarcelStarczyk/6b6153051f46912a665c32199f0d1d54)
 * [Portuguese](https://gist.github.com/SevioCorrea/2bbf337cd084a58c89f2f7f370626dc8)
-* [Russian](https://gist.github.com/artyom-ivanov/ed0417fd1f008f0492d3431c033175df)
+* [Russian](https://gist.github.com/SubvertDev/3317d0c3b35ed601be330d6fc0df5aba)
 * [Simplified Chinese](https://gist.github.com/sh3l6orrr/10c8f7c634a892a9c37214f3211242ad)
 * [Spanish](https://gist.github.com/pitt500/f5e32fccb575ce112ffea2827c7bf942)
+* [Turkish](https://gist.github.com/gokhanamal/93001244ef0c1cec58abeb1afc0de37c)
 * [Ukrainian](https://gist.github.com/barabashd/33b64676195ce41f4bb73c327ea512a8)
 
 If you'd like to contribute a translation, please [open a
 PR](https://github.com/pointfreeco/swift-composable-architecture/edit/main/README.md) with a link 
 to a [Gist](https://gist.github.com)!
-
-## FAQ
-
-We have a [dedicated article][faq-article] for all of the most frequently asked questions and 
-comments people have concerning the library.
 
 ## Credits and thanks
 
@@ -693,7 +699,7 @@ This library is released under the MIT license. See [LICENSE](LICENSE) for detai
 [gh-isowords]: https://github.com/pointfreeco/isowords
 [gh-discussions]: https://github.com/pointfreeco/swift-composable-architecture/discussions
 [swift-forum]: https://forums.swift.org/c/related-projects/swift-composable-architecture
-[testing-article]: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/testing
+[testing-article]: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/testingtca
 [faq-article]: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/faq
 [dependencies-article]: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/dependencymanagement
 [getting-started-article]: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/gettingstarted

@@ -1,5 +1,19 @@
 import Dispatch
 
+func mainActorNow<R: Sendable>(execute block: @MainActor @Sendable () -> R) -> R {
+  if DispatchQueue.getSpecific(key: key) == value {
+    return MainActor._assumeIsolated {
+      block()
+    }
+  } else {
+    return DispatchQueue.main.sync {
+      MainActor._assumeIsolated {
+        block()
+      }
+    }
+  }
+}
+
 func mainActorASAP(execute block: @escaping @MainActor @Sendable () -> Void) {
   if DispatchQueue.getSpecific(key: key) == value {
     MainActor._assumeIsolated {
@@ -7,7 +21,9 @@ func mainActorASAP(execute block: @escaping @MainActor @Sendable () -> Void) {
     }
   } else {
     DispatchQueue.main.async {
-      block()
+      MainActor._assumeIsolated {
+        block()
+      }
     }
   }
 }
